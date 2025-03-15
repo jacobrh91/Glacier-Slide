@@ -134,15 +134,11 @@ impl<'a> Board {
     }
 
     pub fn steps_in_direction(self: &Self, direction: &Direction) -> u8 {
-        println!("Steps in direction");
-        // Instead of returning whether the player can move, return how many steps the
-        // player can take. That way, we know how many functions the Iterator needs to hold.
         let mut curr_pos = self.player.pos.clone();
         let mut steps: u8 = 0;
         let mut stop = false;
         match direction {
             Direction::Up => {
-                println!("Up direction detected");
                 while !stop && curr_pos.row != 0 {
                     match self.grid[curr_pos.row - 1][curr_pos.col] {
                         Tile::Wall | Tile::Rock => stop = true,
@@ -154,7 +150,6 @@ impl<'a> Board {
                 }
             }
             Direction::Down => {
-                println!("Down direction detected");
                 while !stop && curr_pos.row != self.rows - 1 {
                     match self.grid[curr_pos.row + 1][curr_pos.col] {
                         Tile::Wall | Tile::Rock => stop = true,
@@ -166,7 +161,6 @@ impl<'a> Board {
                 }
             }
             Direction::Left => {
-                println!("Left direction detected");
                 while !stop && curr_pos.col != 0 {
                     match self.grid[curr_pos.row][curr_pos.col - 1] {
                         Tile::Wall | Tile::Rock => stop = true,
@@ -178,7 +172,6 @@ impl<'a> Board {
                 }
             }
             Direction::Right => {
-                println!("Right direction detected");
                 while !stop && curr_pos.col != self.cols - 1 {
                     match self.grid[curr_pos.row][curr_pos.col + 1] {
                         Tile::Wall | Tile::Rock => stop = true,
@@ -190,7 +183,6 @@ impl<'a> Board {
                 }
             }
         };
-        println!("Steps: {}", steps);
         steps
     }
 
@@ -220,12 +212,9 @@ impl<'a> Board {
             'd' => Some(Direction::Right),
             _ => None,
         };
-        println!("Dir {:?}", direction_opt);
         if let Some(direction) = direction_opt {
             let steps = self.steps_in_direction(&direction);
-            println!("Steps: {}", steps);
             for _ in 0..steps {
-                println!("Pushing to queue");
                 self.move_queue.push_back(direction.clone());
             }
         }

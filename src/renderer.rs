@@ -47,9 +47,7 @@ impl<S: Fn() -> Vec<String>, T: FnMut(char) -> (), U: Iterator> Renderer<S, T, U
                     disable_raw_mode().unwrap();
                     process::exit(130);
                 } else {
-                    println!("Input {}", &c);
                     (self.input_handler)(c);
-                    println!("Input handled");
                 }
             }
         }
