@@ -34,7 +34,7 @@ fn main() {
         })
     });
 
-    let mut renderer = Renderer::new(render_callback, input_handler, player_moves_iterator);
+    let mut renderer = Renderer::new(render_callback, input_handler, player_moves_iterator, 50);
 
     renderer.render_scene();
 }

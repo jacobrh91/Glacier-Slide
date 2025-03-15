@@ -8,29 +8,41 @@ use crossterm::{cursor, queue, style};
 use std::io::{stdout, Stdout, Write};
 use std::iter::Iterator;
 use std::process;
+use std::thread;
 use std::time::Duration;
-
-pub struct Renderer<S, T, U>
+pub struct Renderer<RenderFn, InputFn, MoveIterator>
 where
-    S: Fn() -> Vec<String>,
-    T: FnMut(char) -> (), // responds to input by changing state
-    U: Iterator,          // in practice, responds to actions queued by T
+    RenderFn: Fn() -> Vec<String>,
+    InputFn: FnMut(char) -> (),
+    MoveIterator: Iterator,
 {
     sout: Stdout,
-    render_function: S,
-    input_handler: T,
-    change_iterator: U,
+    render_function: RenderFn,
+    input_handler: InputFn,
+    change_iterator: MoveIterator,
     initial_render: bool,
+    frame_delay_millis: u64,
 }
 
-impl<S: Fn() -> Vec<String>, T: FnMut(char) -> (), U: Iterator> Renderer<S, T, U> {
-    pub fn new(render_function: S, input_handler: T, iterator: U) -> Renderer<S, T, U> {
+impl<RenderFn, InputFn, MoveIterator> Renderer<RenderFn, InputFn, MoveIterator>
+where
+    RenderFn: Fn() -> Vec<String>,
+    InputFn: FnMut(char) -> (),
+    MoveIterator: Iterator,
+{
+    pub fn new(
+        render_function: RenderFn,
+        input_handler: InputFn,
+        change_iterator: MoveIterator,
+        frame_delay_millis: u64,
+    ) -> Renderer<RenderFn, InputFn, MoveIterator> {
         Renderer {
             sout: stdout(),
-            render_function: render_function,
-            input_handler: input_handler,
-            change_iterator: iterator,
+            render_function,
+            input_handler,
+            change_iterator,
             initial_render: false,
+            frame_delay_millis,
         }
     }
 
@@ -63,7 +75,9 @@ impl<S: Fn() -> Vec<String>, T: FnMut(char) -> (), U: Iterator> Renderer<S, T, U
     pub fn render_scene(self: &mut Self) {
         enable_raw_mode().unwrap();
         loop {
-            match poll(Duration::from_millis(100)) {
+            // Do not delay when polling. It is simply a way to get
+            // the input handling logic to not block the thread.
+            match poll(Duration::from_millis(0)) {
                 Ok(input_found) => {
                     if input_found {
                         read().ok().map(|event| {
@@ -91,6 +105,7 @@ impl<S: Fn() -> Vec<String>, T: FnMut(char) -> (), U: Iterator> Renderer<S, T, U
                 }
                 self.sout.flush().unwrap();
             }
+            thread::sleep(Duration::from_millis(self.frame_delay_millis));
         }
     }
 }

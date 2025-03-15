@@ -205,17 +205,21 @@ impl<'a> Board {
     }
 
     pub fn respond_to_input(self: &'a mut Self, c: char) {
-        let direction_opt = match c {
-            'w' => Some(Direction::Up),
-            's' => Some(Direction::Down),
-            'a' => Some(Direction::Left),
-            'd' => Some(Direction::Right),
-            _ => None,
-        };
-        if let Some(direction) = direction_opt {
-            let steps = self.steps_in_direction(&direction);
-            for _ in 0..steps {
-                self.move_queue.push_back(direction.clone());
+        if !self.move_queue.is_empty() {
+            // Do nothing, the player is still moving
+        } else {
+            let direction_opt = match c {
+                'w' => Some(Direction::Up),
+                's' => Some(Direction::Down),
+                'a' => Some(Direction::Left),
+                'd' => Some(Direction::Right),
+                _ => None,
+            };
+            if let Some(direction) = direction_opt {
+                let steps = self.steps_in_direction(&direction);
+                for _ in 0..steps {
+                    self.move_queue.push_back(direction.clone());
+                }
             }
         }
     }
