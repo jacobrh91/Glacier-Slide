@@ -18,3 +18,9 @@ impl fmt::Display for Direction {
         }
     }
 }
+
+#[derive(Debug, Clone)]
+pub enum Move {
+    Reset,
+    Direction(Direction),
+}

@@ -1,41 +1,15 @@
+pub mod level_reader;
+pub mod point;
 mod tile;
 
-use crate::direction::Direction;
+use crate::direction::{Direction, Move};
 
+use crossterm::event::KeyCode;
+use level_reader::Level;
+
+use point::Point;
 use std::collections::VecDeque;
-//use tile::{End, Player, Rock, Start, Tile};
-use tile::{End, Player, Start, Tile};
-
-// use std::iter::Iterator;
-// use std::time::Duration;
-// use std::{thread, time};
-#[derive(Debug, PartialEq, Clone)]
-pub struct Point {
-    pub row: usize,
-    pub col: usize,
-}
-
-// pub struct MoveIterator<F> {
-//     queue: VecDeque<F>,
-// }
-
-// impl<F> Iterator for MoveIterator<F>
-// where
-//     F: FnMut() -> (),
-// {
-//     type Item = ();
-//     fn next(&mut self) -> Option<Self::Item> {
-//         self.queue.front_mut().map(|x| x())
-//     }
-// }
-
-// impl<F: FnMut() -> ()> MoveIterator<F> {
-//     pub fn new() -> MoveIterator<F> {
-//         MoveIterator {
-//             queue: VecDeque::new(),
-//         }
-//     }
-// }
+use tile::{End, Player, Rock, Start, Tile};
 
 // Board coordinates start at 0, 0 in the top left corner
 #[derive(Debug)]
@@ -45,12 +19,13 @@ pub struct Board {
     start: Start,
     end: End,
     pub player: Player,
-    // rocks: Vec<Rock>,
+    rocks: Vec<Rock>,
     grid: Vec<Vec<Tile>>,
-    pub move_queue: VecDeque<Direction>,
+    pub move_queue: VecDeque<Move>,
+    debug_mode: bool,
 }
 
-impl<'a> Board {
+impl Board {
     pub fn new(rows: usize, cols: usize, start: Point, end: Point, rocks: Vec<Point>) -> Self {
         let mut grid = vec![vec![Tile::Ice; cols]; rows];
 
@@ -79,36 +54,49 @@ impl<'a> Board {
             start: Start { pos: start.clone() },
             end: End { pos: end },
             player: Player { pos: start },
-            // rocks: rocks.iter().map(|r| Rock { pos: r.clone() }).collect(),
+            rocks: rocks.iter().map(|r| Rock { pos: r.clone() }).collect(),
             grid,
             move_queue: VecDeque::new(),
+            debug_mode: false,
         };
     }
 
-    fn create_arrows(self: &Self, start_position: bool, p: Point) -> &str {
+    pub fn from_level(l: Level) -> Self {
+        Board::new(l.rows, l.cols, l.start, l.end, l.rocks)
+    }
+
+    pub fn enable_debug_mode(self: &mut Self) {
+        self.debug_mode = true;
+    }
+
+    pub fn reset(self: &mut Self) {
+        self.update_player_position(self.start.pos.row, self.start.pos.col);
+    }
+
+    fn create_arrows(self: &Self, start_position: bool, p: Point) -> String {
         if p.col == 0 {
             if start_position {
-                "▷ "
+                String::from("▷ ")
             } else {
-                " ▷"
+                String::from("◁ ")
             }
         } else if p.col == self.cols - 1 {
             if start_position {
-                " ◁"
+                String::from(" ◁")
             } else {
-                "◁ "
+                String::from(" ▷")
             }
         } else if p.row == 0 {
             if start_position {
-                "▽▽"
+                String::from("▽ ")
             } else {
-                "△△"
+                String::from("△ ")
             }
         } else {
             if start_position {
-                "△△"
+                String::from("△ ")
             } else {
-                "▽▽"
+                String::from("▽ ")
             }
         }
     }
@@ -119,12 +107,24 @@ impl<'a> Board {
             let mut row_str = String::from("");
             for c in 0..self.cols {
                 let tile_str = match self.grid[r][c] {
-                    Tile::Wall => "██",
-                    Tile::Rock => "██",
+                    Tile::Wall => {
+                        if !self.debug_mode {
+                            String::from("██")
+                        } else {
+                            if r == 0 || r == self.rows - 1 {
+                                format!(" {:1}", c % 10).to_string()
+                            } else if c == 0 || c == self.cols - 1 {
+                                format!(" {:1}", r % 10).to_string()
+                            } else {
+                                String::from("██")
+                            }
+                        }
+                    }
+                    Tile::Rock => String::from("██"),
                     Tile::Start => self.create_arrows(true, Point { col: c, row: r }),
                     Tile::End => self.create_arrows(false, Point { col: c, row: r }),
-                    Tile::Player => "🟥", // ◖◗
-                    Tile::Ice => "  ",
+                    Tile::Player => String::from("🟥"), // ◖◗
+                    Tile::Ice => String::from("  "),
                 };
                 row_str.push_str(&tile_str);
             }
@@ -182,7 +182,7 @@ impl<'a> Board {
                     }
                 }
             }
-        };
+        }
         steps
     }
 
@@ -204,27 +204,35 @@ impl<'a> Board {
         }
     }
 
-    pub fn respond_to_input(self: &'a mut Self, c: char) {
-        if !self.move_queue.is_empty() {
-            // Do nothing, the player is still moving
-        } else {
-            let direction_opt = match c {
-                'w' => Some(Direction::Up),
-                's' => Some(Direction::Down),
-                'a' => Some(Direction::Left),
-                'd' => Some(Direction::Right),
-                _ => None,
-            };
-            if let Some(direction) = direction_opt {
-                let steps = self.steps_in_direction(&direction);
-                for _ in 0..steps {
-                    self.move_queue.push_back(direction.clone());
+    pub fn respond_to_input(self: &mut Self, key_code: KeyCode) {
+        let move_opt: Option<Move> = match key_code {
+            KeyCode::Char('w') | KeyCode::Up => Some(Move::Direction(Direction::Up)),
+            KeyCode::Char('s') | KeyCode::Down => Some(Move::Direction(Direction::Down)),
+            KeyCode::Char('a') | KeyCode::Left => Some(Move::Direction(Direction::Left)),
+            KeyCode::Char('d') | KeyCode::Right => Some(Move::Direction(Direction::Right)),
+            KeyCode::Char('\u{0020}') => Some(Move::Reset),
+            _ => None,
+        };
+        match move_opt {
+            None => (),
+            Some(Move::Reset) => {
+                self.move_queue.clear();
+                self.move_queue.push_back(Move::Reset);
+            }
+            Some(Move::Direction(direction)) => {
+                // If the queue is not empty, the player is still moving
+                if self.move_queue.is_empty() {
+                    let steps = self.steps_in_direction(&direction);
+                    for _ in 0..steps {
+                        self.move_queue
+                            .push_back(Move::Direction(direction.clone()));
+                    }
                 }
             }
         }
     }
 
-    pub fn move_player(self: &'a mut Self, dir: Direction) {
+    pub fn move_player(self: &mut Self, dir: Direction) {
         match dir {
             Direction::Up => {
                 self.update_player_position(self.player.pos.row - 1, self.player.pos.col)
@@ -241,9 +249,9 @@ impl<'a> Board {
         };
     }
 
-    // pub fn player_won(self: &Self) -> bool {
-    //     self.player.pos == self.end.pos
-    // }
+    pub fn player_won(self: &Self) -> bool {
+        self.player.pos == self.end.pos
+    }
 
     // fn add_rock(self: &mut Self, p: Point) -> bool {
     //     match self.grid[p.row][p.col] {

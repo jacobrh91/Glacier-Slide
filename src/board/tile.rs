@@ -1,4 +1,4 @@
-use crate::Point;
+use super::point::Point;
 
 #[derive(Debug, Clone)]
 pub struct Player {
@@ -15,10 +15,10 @@ pub struct End {
     pub pos: Point,
 }
 
-// #[derive(Debug, Clone)]
-// pub struct Rock {
-//     pub pos: Point,
-// }
+#[derive(Debug, Clone)]
+pub struct Rock {
+    pub pos: Point,
+}
 
 #[derive(Debug, Clone)]
 pub enum Tile {

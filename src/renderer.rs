@@ -13,7 +13,7 @@ use std::time::Duration;
 pub struct Renderer<RenderFn, InputFn, MoveIterator>
 where
     RenderFn: Fn() -> Vec<String>,
-    InputFn: FnMut(char) -> (),
+    InputFn: FnMut(KeyCode) -> (),
     MoveIterator: Iterator,
 {
     sout: Stdout,
@@ -27,7 +27,7 @@ where
 impl<RenderFn, InputFn, MoveIterator> Renderer<RenderFn, InputFn, MoveIterator>
 where
     RenderFn: Fn() -> Vec<String>,
-    InputFn: FnMut(char) -> (),
+    InputFn: FnMut(KeyCode) -> (),
     MoveIterator: Iterator,
 {
     pub fn new(
@@ -49,19 +49,32 @@ where
     fn key_input_handler(self: &mut Self, event: Event) {
         if let Key(key_event) = event {
             if let KeyEvent {
-                code: KeyCode::Char(c),
+                code,
                 modifiers,
                 kind: KeyEventKind::Press,
                 state: KeyEventState::NONE,
             } = key_event
             {
-                if c == 'c' && modifiers == KeyModifiers::CONTROL {
-                    disable_raw_mode().unwrap();
-                    process::exit(130);
-                } else {
-                    (self.input_handler)(c);
+                match code {
+                    KeyCode::Char(c) if c == 'c' && modifiers == KeyModifiers::CONTROL => {
+                        disable_raw_mode().unwrap();
+                        process::exit(130);
+                    }
+                    keycode => (self.input_handler)(keycode),
                 }
+                // if let KeyCode::Char(c) = code {
+
+                // }
             }
+            // {
+            //     if c == 'c' && modifiers == KeyModifiers::CONTROL {
+            //       KeyCode::
+            //         disable_raw_mode().unwrap();
+            //         process::exit(130);
+            //     } else {
+            //         (self.input_handler)(c);
+            //     }
+            // }
         }
     }
 

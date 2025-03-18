@@ -1,0 +1,25 @@
+{
+  "cols": 5,
+  "rows": 5,
+  "start": {
+    "col": 0,
+    "row": 1
+  },
+  "end": {
+    "col": 3,
+    "row": 4
+  },
+  "rocks": [
+    {
+      "col": 3,
+      "row": 1
+    },
+    {
+      "col": 2,
+      "row": 3
+    }
+  ],
+  "solutions": [
+    "RDRD"
+  ]
+}
