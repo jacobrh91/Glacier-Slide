@@ -16,8 +16,8 @@ use tile::{End, Player, Rock, Start, Tile};
 pub struct Board {
     rows: usize,
     cols: usize,
-    start: Start,
-    end: End,
+    pub start: Start,
+    pub end: End,
     pub player: Player,
     rocks: Vec<Rock>,
     grid: Vec<Vec<Tile>>,
@@ -186,7 +186,7 @@ impl Board {
         steps
     }
 
-    fn update_player_position(self: &mut Self, new_row: usize, new_col: usize) {
+    pub fn update_player_position(self: &mut Self, new_row: usize, new_col: usize) {
         // Cloning because this after moving the player, we need to know how to restore the previous tile.
         let prev_pos = self.player.pos.clone();
 

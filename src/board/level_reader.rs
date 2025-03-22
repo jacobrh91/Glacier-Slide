@@ -3,7 +3,6 @@ use serde;
 use std::fs;
 use std::fs::File;
 use std::io::BufReader;
-use std::path::PathBuf;
 
 use serde::Deserialize;
 use serde::Serialize;
