@@ -2,7 +2,7 @@ pub mod level_reader;
 pub mod point;
 mod tile;
 
-use crate::direction::{Direction, Move};
+use crate::direction::{Direction, Move, Slide};
 
 use crossterm::event::KeyCode;
 use level_reader::Level;
@@ -204,53 +204,74 @@ impl Board {
         }
     }
 
+    fn create_slide_move(self: &Self, direction: &Direction) -> Option<Move> {
+        // If the queue is not empty, the player is still moving
+        if self.move_queue.is_empty() {
+            let steps = self.steps_in_direction(&direction);
+            if steps > 0 {
+                Some(Move::MovePlayer(Slide::new(steps, direction.clone())))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
     pub fn respond_to_input(self: &mut Self, key_code: KeyCode) {
         let move_opt: Option<Move> = match key_code {
-            KeyCode::Char('w') | KeyCode::Up => Some(Move::Direction(Direction::Up)),
-            KeyCode::Char('s') | KeyCode::Down => Some(Move::Direction(Direction::Down)),
-            KeyCode::Char('a') | KeyCode::Left => Some(Move::Direction(Direction::Left)),
-            KeyCode::Char('d') | KeyCode::Right => Some(Move::Direction(Direction::Right)),
+            KeyCode::Char('w') | KeyCode::Up => self.create_slide_move(&Direction::Up),
+            KeyCode::Char('s') | KeyCode::Down => self.create_slide_move(&Direction::Down),
+            KeyCode::Char('a') | KeyCode::Left => self.create_slide_move(&Direction::Left),
+            KeyCode::Char('d') | KeyCode::Right => self.create_slide_move(&Direction::Right),
             KeyCode::Char('\u{0020}') => Some(Move::Reset),
             _ => None,
         };
-        match move_opt {
-            None => (),
-            Some(Move::Reset) => {
+        move_opt.map(|r#move| {
+            if let Move::Reset = r#move {
                 self.move_queue.clear();
-                self.move_queue.push_back(Move::Reset);
-            }
-            Some(Move::Direction(direction)) => {
-                // If the queue is not empty, the player is still moving
-                if self.move_queue.is_empty() {
-                    let steps = self.steps_in_direction(&direction);
-                    for _ in 0..steps {
-                        self.move_queue
-                            .push_back(Move::Direction(direction.clone()));
-                    }
+                if self.player.pos != self.start.pos {
+                    // Only queue the reset move if the player is not in the start position.
+                    self.move_queue.push_back(r#move);
                 }
+            } else {
+                self.move_queue.push_back(r#move);
             }
-        }
+        });
     }
 
     pub fn move_player(self: &mut Self, dir: Direction) {
-        match dir {
-            Direction::Up => {
-                self.update_player_position(self.player.pos.row - 1, self.player.pos.col)
-            }
-            Direction::Down => {
-                self.update_player_position(self.player.pos.row + 1, self.player.pos.col)
-            }
-            Direction::Left => {
-                self.update_player_position(self.player.pos.row, self.player.pos.col - 1)
-            }
-            Direction::Right => {
-                self.update_player_position(self.player.pos.row, self.player.pos.col + 1)
-            }
+        let (new_row, new_col) = match dir {
+            Direction::Up => (self.player.pos.row - 1, self.player.pos.col),
+            Direction::Down => (self.player.pos.row + 1, self.player.pos.col),
+            Direction::Left => (self.player.pos.row, self.player.pos.col - 1),
+            Direction::Right => (self.player.pos.row, self.player.pos.col + 1),
         };
+        self.update_player_position(new_row, new_col)
     }
 
     pub fn player_won(self: &Self) -> bool {
         self.player.pos == self.end.pos
+    }
+
+    pub fn process_move(self: &mut Self) -> Option<()> {
+        /* Pop the move queue, and respond to the move. This method is intended to be called
+          within a callback function in the renderer.
+        */
+        self.move_queue
+            .pop_front()
+            .map(|curr_move| match curr_move {
+                Move::MovePlayer(mut slide) => {
+                    // If the number of steps is greater than 1, modify the Slide object,
+                    // and put it back on the front of the queue
+                    if slide.steps > 1 {
+                        slide.steps -= 1;
+                        self.move_queue.push_front(Move::MovePlayer(slide.clone()));
+                    }
+                    self.move_player(slide.direction)
+                }
+                Move::Reset => self.reset(),
+                Move::Teleport(p) => self.update_player_position(p.row, p.col),
+            })
     }
 
     // fn add_rock(self: &mut Self, p: Point) -> bool {

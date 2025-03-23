@@ -62,19 +62,7 @@ where
                     }
                     keycode => (self.input_handler)(keycode),
                 }
-                // if let KeyCode::Char(c) = code {
-
-                // }
             }
-            // {
-            //     if c == 'c' && modifiers == KeyModifiers::CONTROL {
-            //       KeyCode::
-            //         disable_raw_mode().unwrap();
-            //         process::exit(130);
-            //     } else {
-            //         (self.input_handler)(c);
-            //     }
-            // }
         }
     }
 

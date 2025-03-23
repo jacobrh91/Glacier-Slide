@@ -1,5 +1,7 @@
 use std::{error::Error, fmt};
 
+use crate::board::point::Point;
+
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Direction {
     Up,
@@ -58,7 +60,20 @@ impl fmt::Debug for Direction {
 }
 
 #[derive(Debug, Clone)]
+pub struct Slide {
+    pub steps: u8,
+    pub direction: Direction,
+}
+
+impl Slide {
+    pub fn new(steps: u8, direction: Direction) -> Self {
+        Slide { steps, direction }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum Move {
     Reset,
-    Direction(Direction),
+    MovePlayer(Slide),
+    Teleport(Point),
 }

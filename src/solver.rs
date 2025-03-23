@@ -1,32 +1,43 @@
-use std::{collections::HashSet, process, time::Duration};
+use std::{
+    cell::RefCell,
+    collections::{HashSet, VecDeque},
+    rc::Rc,
+};
 
 use crate::{
     board::{point::Point, Board},
-    direction::Direction,
-    renderer::Renderer,
+    direction::{Direction, Move, Slide},
 };
 
-pub struct Solver<'a> {
-    board: &'a mut Board,
+pub struct Solver {
+    pub board: Rc<RefCell<Board>>,
+    visual_mode: bool, // If true, saves the graph traversal moves.
+    pub move_record: VecDeque<Move>,
 }
 
-struct Results {
-    search_steps: Box<u64>,
-    solutions: Vec<String>,
-}
-
-impl<'a> Solver<'a> {
-    pub fn new(board: &'a mut Board) -> Self {
-        Solver { board }
+impl Solver {
+    pub fn new(board: Rc<RefCell<Board>>) -> Self {
+        Solver {
+            board,
+            visual_mode: false,
+            move_record: VecDeque::new(),
+        }
+    }
+    pub fn enable_visual_mode(self: &mut Self) {
+        self.visual_mode = true;
+        // self.move_record.push_back(Move::Reset);
     }
 
     pub fn solve(self: &mut Self) {
         let cache = HashSet::<Point>::new();
         let mut search_steps = Box::new(0u32);
         let mut solutions = Vec::new();
+
+        let curr_position = self.board.borrow().start.pos.clone();
+
         self.solve_rec(
             Vec::new(),
-            self.board.start.pos.clone(),
+            curr_position,
             cache,
             &mut solutions,
             &mut search_steps,
@@ -38,7 +49,11 @@ impl<'a> Solver<'a> {
         clean_solutions.sort();
         clean_solutions.reverse();
 
-        println!("Solutions: {}", clean_solutions.len());
+        println!(
+            "Solutions: {}\nSteps searched: {}",
+            clean_solutions.len(),
+            search_steps
+        );
         if clean_solutions.len() > 0 {
             println!("Shortest: {}", clean_solutions.first().unwrap().len());
         }
@@ -58,24 +73,30 @@ impl<'a> Solver<'a> {
     ) {
         self.reset_player_position(&curr_position);
 
-        if self.board.player_won() {
+        if self.board.borrow().player_won() {
             solutions.push(prev_moves);
         } else if !cache.contains(&curr_position) {
-            cache.insert(self.board.player.pos.clone());
+            cache.insert(self.board.borrow().player.pos.clone());
             for direction in self.get_possible_moves(prev_moves.last()) {
                 self.reset_player_position(&curr_position);
-                let steps = self.board.steps_in_direction(&direction);
+                let steps = self.board.borrow().steps_in_direction(&direction);
                 if steps > 0 {
                     **search_steps += 1;
                     let mut updated_moves = prev_moves.clone();
                     updated_moves.push(direction.clone());
-                    for _ in 0..steps {
-                        // Move player the required number of steps
-                        self.board.move_player(direction.clone());
+                    // If in visual mode, record the movement.
+                    if self.visual_mode {
+                        self.move_record
+                            .push_back(Move::MovePlayer(Slide::new(steps, direction.clone())));
                     }
+                    // Move the player for the solver.
+                    for _ in 0..steps {
+                        self.board.borrow_mut().move_player(direction.clone());
+                    }
+                    let curr_position = self.board.borrow().player.pos.clone();
                     self.solve_rec(
                         updated_moves,
-                        self.board.player.pos.clone(),
+                        curr_position,
                         cache.clone(),
                         solutions,
                         search_steps,
@@ -86,8 +107,14 @@ impl<'a> Solver<'a> {
     }
 
     fn reset_player_position(self: &mut Self, current_position: &Point) {
-        if self.board.player.pos != *current_position {
+        if self.board.borrow().player.pos != *current_position {
+            if self.visual_mode {
+                // Record the reset of the player's position
+                self.move_record
+                    .push_back(Move::Teleport(current_position.clone()));
+            }
             self.board
+                .borrow_mut()
                 .update_player_position(current_position.row, current_position.col);
         }
     }
