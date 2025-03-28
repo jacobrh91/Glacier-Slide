@@ -2,7 +2,7 @@ use std::{error::Error, fmt};
 
 use crate::board::point::Point;
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Direction {
     Up,
     Down,

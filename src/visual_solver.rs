@@ -38,7 +38,13 @@ pub fn render_steps() -> Result<(), Box<dyn Error>> {
     // Load the board with the solver moves.
     rc_board.borrow_mut().move_queue = solver.move_record;
 
-    let mut renderer = Renderer::new(render_callback, input_handler, player_moves_iterator, 0);
+    let frame_delay = 100;
+    let mut renderer = Renderer::new(
+        render_callback,
+        input_handler,
+        player_moves_iterator,
+        frame_delay,
+    );
 
     renderer.render_scene();
 

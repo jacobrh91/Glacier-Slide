@@ -1,18 +1,30 @@
 pub mod level_reader;
 pub mod point;
 mod tile;
-
-use crate::direction::{Direction, Move, Slide};
+use crate::{
+    direction::{Direction, Move, Slide},
+    solver::{self, Solver},
+};
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
+use time_elapsed;
 
 use crossterm::event::KeyCode;
+use indexed_hash_set::{self, IndexedHashSet, RcIndex};
 use level_reader::Level;
-
 use point::Point;
-use std::collections::VecDeque;
+use rand::{rngs::StdRng, Rng, SeedableRng};
+
+use std::{
+    cmp::min,
+    collections::{HashSet, VecDeque},
+    hash::{DefaultHasher, Hash, Hasher},
+    thread,
+    time::Duration,
+};
 use tile::{End, Player, Rock, Start, Tile};
 
 // Board coordinates start at 0, 0 in the top left corner
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Board {
     rows: usize,
     cols: usize,
@@ -61,6 +73,104 @@ impl Board {
         };
     }
 
+    fn get_random_start_and_end(cols: usize, rows: usize) -> (Point, Point) {
+        assert!(cols >= 3 && rows >= 3);
+        let total_possible = (2 * (cols - 2)) + (2 * (rows - 2));
+        let mut possible_values = Vec::with_capacity(total_possible);
+
+        // Get top and bottom borders (not including the corner)
+        let max_col = cols - 1;
+        for c in 0..max_col {
+            possible_values.push(Point { col: c, row: 0 });
+            possible_values.push(Point {
+                col: c,
+                row: rows - 1,
+            });
+        }
+        // Get left and right borders (not including the corner)
+        let max_row = rows - 1;
+        for r in 0..max_row {
+            possible_values.push(Point { col: 0, row: r });
+            possible_values.push(Point {
+                col: cols - 1,
+                row: r,
+            });
+        }
+        let mut rng = rand::rng();
+
+        let start_idx = rng.random_range(0..total_possible);
+        let mut end_idx = rng.random_range(0..total_possible);
+        while start_idx == end_idx {
+            end_idx = rng.random_range(0..total_possible);
+        }
+        (
+            possible_values[start_idx].clone(),
+            possible_values[end_idx].clone(),
+        )
+    }
+
+    fn generate_rock(col: usize, row: usize, percent_probability: u8) -> Option<Point> {
+        let mut rng = rand::rng();
+        let value = rng.random_range(1..101);
+
+        if value <= percent_probability {
+            Some(Point { col, row })
+        } else {
+            None
+        }
+    }
+
+    pub fn random(cols: usize, rows: usize, percent_probability: u8) -> Self {
+        assert!(cols >= 3 && rows >= 3);
+        let (start, end) = Board::get_random_start_and_end(cols, rows);
+
+        let mut rocks = Vec::new();
+        let col_right_bound = cols - 2;
+        let row_bottom_bound = rows - 2;
+        for c in 1..=col_right_bound {
+            for r in 1..=row_bottom_bound {
+                if let Some(r) = Board::generate_rock(c, r, percent_probability) {
+                    rocks.push(r);
+                }
+            }
+        }
+
+        Board::new(rows, cols, start, end, rocks)
+    }
+
+    pub fn solvable_random(
+        cols: usize,
+        rows: usize,
+        percent_probability: u8,
+        minimum_solution_length: u16,
+    ) -> Self {
+        disable_raw_mode().unwrap();
+        let mut value = 1;
+        let mut board = Board::random(cols, rows, percent_probability);
+        let mut time = time_elapsed::start("test");
+
+        let mut solver = Solver::from_board(&board);
+        let mut solution = solver.solve();
+        let mut denominator = 1;
+
+        while !solution.is_solvable()
+            || solution.solutions[0].chars().count() < minimum_solution_length.into()
+        {
+            board = Board::random(cols, rows, percent_probability);
+            solver = Solver::from_board(&board);
+            solution = solver.solve().clone();
+            if value % denominator == 0 {
+                // println!("Number of iterations: {}", value);
+                denominator = denominator * 10;
+                time.log_overall(format!("Number of iterations: {}\t\t: ", value));
+            }
+            value += 1;
+            // thread::sleep(Duration::from_millis(1000));
+        }
+        enable_raw_mode().unwrap();
+        board
+    }
+
     pub fn from_level(l: Level) -> Self {
         Board::new(l.rows, l.cols, l.start, l.end, l.rocks)
     }
@@ -101,37 +211,98 @@ impl Board {
         }
     }
 
+    fn calculate_hash<T: Hash>(t: &T) -> u64 {
+        let mut s = DefaultHasher::new();
+        t.hash(&mut s);
+        s.finish()
+    }
+
     pub fn render_board(self: &Self) -> Vec<String> {
+        let depth = 4;
+
         let mut result = Vec::new();
-        for r in 0..self.rows {
+        let c_left = self.player.pos.col as isize - depth;
+        let c_right = self.player.pos.col as isize + depth;
+        let r_top = self.player.pos.row as isize - depth;
+        let r_bottom = self.player.pos.row as isize + depth;
+
+        result.push(String::from(format!(
+            "{}; {}",
+            self.player.pos.col, self.player.pos.col as isize
+        )));
+
+        for r in r_top..=r_bottom {
             let mut row_str = String::from("");
-            for c in 0..self.cols {
-                let tile_str = match self.grid[r][c] {
-                    Tile::Wall => {
-                        if !self.debug_mode {
-                            String::from("██")
-                        } else {
-                            if r == 0 || r == self.rows - 1 {
-                                format!(" {:1}", c % 10).to_string()
-                            } else if c == 0 || c == self.cols - 1 {
-                                format!(" {:1}", r % 10).to_string()
-                            } else {
-                                String::from("██")
-                            }
-                        }
+            for c in c_left..=c_right {
+                if c < 0 || c as usize >= self.cols || r < 0 || r as usize >= self.rows {
+                    // deterministic, but unpredictable.
+                    let rock_positions: Vec<Point> = self.rocks.iter().map(|r| r.pos).collect();
+                    let v = Board::calculate_hash(&((c, r), rock_positions));
+
+                    if v % 10 < 8 {
+                        row_str.push_str("██");
+                    } else {
+                        row_str.push_str("  ");
                     }
-                    Tile::Rock => String::from("██"),
-                    Tile::Start => self.create_arrows(true, Point { col: c, row: r }),
-                    Tile::End => self.create_arrows(false, Point { col: c, row: r }),
-                    Tile::Player => String::from("🟥"), // ◖◗
-                    Tile::Ice => String::from("  "),
-                };
-                row_str.push_str(&tile_str);
+                } else {
+                    let tile_str = match self.grid[r as usize][c as usize] {
+                        Tile::Wall | Tile::Rock => String::from("██"),
+                        Tile::Start => self.create_arrows(
+                            true,
+                            Point {
+                                col: c as usize,
+                                row: r as usize,
+                            },
+                        ),
+                        Tile::End => self.create_arrows(
+                            false,
+                            Point {
+                                col: c as usize,
+                                row: r as usize,
+                            },
+                        ),
+                        Tile::Player => String::from("🟥"), // ◖◗
+                        Tile::Ice => String::from("  "),
+                    };
+                    row_str.push_str(&tile_str);
+                }
             }
             result.push(row_str);
         }
         result
     }
+
+    // pub fn render_board(self: &Self) -> Vec<String> {
+    //     let mut result = Vec::new();
+    //     for r in 0..self.rows {
+    //         let mut row_str = String::from("");
+    //         for c in 0..self.cols {
+    //             let tile_str = match self.grid[r][c] {
+    //                 Tile::Wall => {
+    //                     if !self.debug_mode {
+    //                         String::from("██")
+    //                     } else {
+    //                         if r == 0 || r == self.rows - 1 {
+    //                             format!(" {:1}", c % 10).to_string()
+    //                         } else if c == 0 || c == self.cols - 1 {
+    //                             format!(" {:1}", r % 10).to_string()
+    //                         } else {
+    //                             String::from("██")
+    //                         }
+    //                     }
+    //                 }
+    //                 Tile::Rock => String::from("██"),
+    //                 Tile::Start => self.create_arrows(true, Point { col: c, row: r }),
+    //                 Tile::End => self.create_arrows(false, Point { col: c, row: r }),
+    //                 Tile::Player => String::from("🟥"), // ◖◗
+    //                 Tile::Ice => String::from("  "),
+    //             };
+    //             row_str.push_str(&tile_str);
+    //         }
+    //         result.push(row_str);
+    //     }
+    //     result
+    // }
 
     pub fn steps_in_direction(self: &Self, direction: &Direction) -> u8 {
         let mut curr_pos = self.player.pos.clone();
@@ -209,7 +380,7 @@ impl Board {
         if self.move_queue.is_empty() {
             let steps = self.steps_in_direction(&direction);
             if steps > 0 {
-                Some(Move::MovePlayer(Slide::new(steps, direction.clone())))
+                Some(Move::MovePlayer(Slide::new(steps, *direction)))
             } else {
                 None
             }
@@ -273,14 +444,4 @@ impl Board {
                 Move::Teleport(p) => self.update_player_position(p.row, p.col),
             })
     }
-
-    // fn add_rock(self: &mut Self, p: Point) -> bool {
-    //     match self.grid[p.row][p.col] {
-    //         Tile::Ice => {
-    //             self.grid[p.row][p.col] = Tile::Rock;
-    //             true
-    //         }
-    //         _ => false,
-    //     }
-    // }
 }

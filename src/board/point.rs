@@ -3,10 +3,10 @@ use serde::Serialize;
 use std::fmt::Debug;
 use std::fmt::Display;
 
-#[derive(PartialEq, Hash, Eq, Clone, Serialize, Deserialize)]
+#[derive(PartialEq, Hash, Eq, Clone, Copy, Serialize, Deserialize)]
 pub struct Point {
-    pub row: usize,
     pub col: usize,
+    pub row: usize,
 }
 
 impl Display for Point {

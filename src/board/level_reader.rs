@@ -7,8 +7,10 @@ use std::io::BufReader;
 use serde::Deserialize;
 use serde::Serialize;
 use std::error::Error;
+use uuid::Uuid;
 
 use super::point::Point;
+use super::Board;
 
 #[derive(Serialize, Deserialize)]
 pub struct Level {
@@ -32,4 +34,17 @@ pub fn read_level_data(name: &str) -> Result<Level, Box<dyn Error>> {
     let reader = BufReader::new(file);
     let u: Level = serde_json::from_reader(reader)?;
     Ok(u)
+}
+
+pub fn save_level(source: String, board: &Board, solutions: Vec<String>) {
+    let level = Level {
+        cols: board.cols,
+        rows: board.rows,
+        start: board.start.pos,
+        end: board.end.pos,
+        rocks: board.rocks.iter().map(|r| r.pos).collect(),
+        solutions: Some(solutions),
+    };
+    let a = Uuid::new_v4();
+    let level_name = format!("{}/{}.json", source, a);
 }

@@ -15,6 +15,17 @@ pub struct Solver {
     pub move_record: VecDeque<Move>,
 }
 
+#[derive(Clone)]
+pub struct Solution {
+    pub solutions: Vec<String>,
+}
+
+impl Solution {
+    pub fn is_solvable(self: &Self) -> bool {
+        self.solutions.len() > 0
+    }
+}
+
 impl Solver {
     pub fn new(board: Rc<RefCell<Board>>) -> Self {
         Solver {
@@ -23,12 +34,18 @@ impl Solver {
             move_record: VecDeque::new(),
         }
     }
+
+    // TODO fix
+    pub fn from_board(board: &Board) -> Self {
+        Solver::new(Rc::new(RefCell::new(board.clone())))
+    }
+
     pub fn enable_visual_mode(self: &mut Self) {
         self.visual_mode = true;
         // self.move_record.push_back(Move::Reset);
     }
 
-    pub fn solve(self: &mut Self) {
+    pub fn solve(self: &mut Self) -> Solution {
         let cache = HashSet::<Point>::new();
         let mut search_steps = Box::new(0u32);
         let mut solutions = Vec::new();
@@ -46,20 +63,23 @@ impl Solver {
             .into_iter()
             .map(|s| Direction::to_string(s))
             .collect::<Vec<_>>();
-        clean_solutions.sort();
+        clean_solutions.sort_by(|a, b| b.chars().count().cmp(&a.chars().count()));
         clean_solutions.reverse();
 
-        println!(
-            "Solutions: {}\nSteps searched: {}",
-            clean_solutions.len(),
-            search_steps
-        );
-        if clean_solutions.len() > 0 {
-            println!("Shortest: {}", clean_solutions.first().unwrap().len());
-        }
-        println!("\nSolution(s):");
-        for s in clean_solutions {
-            println!("  {}", s);
+        // println!(
+        //     "Solutions: {}\nSteps searched: {}",
+        //     clean_solutions.len(),
+        //     search_steps
+        // );
+        // if clean_solutions.len() > 0 {
+        //     println!("Shortest: {}", clean_solutions.first().unwrap().len());
+        // }
+        // println!("\nSolution(s):");
+        // for s in &clean_solutions {
+        //     println!("  {}", s);
+        // }
+        Solution {
+            solutions: clean_solutions,
         }
     }
 
@@ -83,15 +103,15 @@ impl Solver {
                 if steps > 0 {
                     **search_steps += 1;
                     let mut updated_moves = prev_moves.clone();
-                    updated_moves.push(direction.clone());
+                    updated_moves.push(direction);
                     // If in visual mode, record the movement.
                     if self.visual_mode {
                         self.move_record
-                            .push_back(Move::MovePlayer(Slide::new(steps, direction.clone())));
+                            .push_back(Move::MovePlayer(Slide::new(steps, direction)));
                     }
                     // Move the player for the solver.
                     for _ in 0..steps {
-                        self.board.borrow_mut().move_player(direction.clone());
+                        self.board.borrow_mut().move_player(direction);
                     }
                     let curr_position = self.board.borrow().player.pos.clone();
                     self.solve_rec(
