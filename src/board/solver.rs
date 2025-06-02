@@ -4,15 +4,12 @@ use std::{
     rc::Rc,
 };
 
-use crate::{
-    board::{point::Point, Board},
-    direction::{Direction, Move, Slide},
-};
+use crate::board::{point::Point, Board};
+
+use super::direction::Direction;
 
 pub struct Solver {
     pub board: Rc<RefCell<Board>>,
-    visual_mode: bool, // If true, saves the graph traversal moves.
-    pub move_record: VecDeque<Move>,
 }
 
 #[derive(Clone)]
@@ -28,21 +25,11 @@ impl Solution {
 
 impl Solver {
     pub fn new(board: Rc<RefCell<Board>>) -> Self {
-        Solver {
-            board,
-            visual_mode: false,
-            move_record: VecDeque::new(),
-        }
+        Solver { board }
     }
 
-    // TODO fix
     pub fn from_board(board: &Board) -> Self {
         Solver::new(Rc::new(RefCell::new(board.clone())))
-    }
-
-    pub fn enable_visual_mode(self: &mut Self) {
-        self.visual_mode = true;
-        // self.move_record.push_back(Move::Reset);
     }
 
     pub fn solve(self: &mut Self) -> Solution {
@@ -66,18 +53,6 @@ impl Solver {
         clean_solutions.sort_by(|a, b| b.chars().count().cmp(&a.chars().count()));
         clean_solutions.reverse();
 
-        // println!(
-        //     "Solutions: {}\nSteps searched: {}",
-        //     clean_solutions.len(),
-        //     search_steps
-        // );
-        // if clean_solutions.len() > 0 {
-        //     println!("Shortest: {}", clean_solutions.first().unwrap().len());
-        // }
-        // println!("\nSolution(s):");
-        // for s in &clean_solutions {
-        //     println!("  {}", s);
-        // }
         Solution {
             solutions: clean_solutions,
         }
@@ -104,11 +79,6 @@ impl Solver {
                     **search_steps += 1;
                     let mut updated_moves = prev_moves.clone();
                     updated_moves.push(direction);
-                    // If in visual mode, record the movement.
-                    if self.visual_mode {
-                        self.move_record
-                            .push_back(Move::MovePlayer(Slide::new(steps, direction)));
-                    }
                     // Move the player for the solver.
                     for _ in 0..steps {
                         self.board.borrow_mut().move_player(direction);
@@ -128,11 +98,6 @@ impl Solver {
 
     fn reset_player_position(self: &mut Self, current_position: &Point) {
         if self.board.borrow().player.pos != *current_position {
-            if self.visual_mode {
-                // Record the reset of the player's position
-                self.move_record
-                    .push_back(Move::Teleport(current_position.clone()));
-            }
             self.board
                 .borrow_mut()
                 .update_player_position(current_position.row, current_position.col);
@@ -142,7 +107,7 @@ impl Solver {
     fn get_possible_moves(self: &Self, previous_move_opt: Option<&Direction>) -> Vec<Direction> {
         previous_move_opt
             .map(|previous_move| {
-                // If previous move exist, next move must be in orthogonal direction.
+                // If the previous move exists, the next move must be in an orthogonal direction.
                 if *previous_move == Direction::Up || *previous_move == Direction::Down {
                     vec![Direction::Right, Direction::Left]
                 } else {

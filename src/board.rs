@@ -1,25 +1,26 @@
-pub mod level_reader;
-pub mod point;
+mod direction;
+mod level_reader;
+mod point;
+mod solver;
+
 mod tile;
-use crate::{
-    direction::{Direction, Move, Slide},
-    solver::{self, Solver},
-};
+use crate::{game::get_introduction_section, system::exit_game};
+
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
+use direction::{Direction, Move, Slide};
+use solver::Solver;
 use time_elapsed;
 
 use crossterm::event::KeyCode;
-use indexed_hash_set::{self, IndexedHashSet, RcIndex};
 use level_reader::Level;
 use point::Point;
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::Rng;
+
+use thousands::Separable;
 
 use std::{
-    cmp::min,
-    collections::{HashSet, VecDeque},
+    collections::VecDeque,
     hash::{DefaultHasher, Hash, Hasher},
-    thread,
-    time::Duration,
 };
 use tile::{End, Player, Rock, Start, Tile};
 
@@ -34,11 +35,19 @@ pub struct Board {
     rocks: Vec<Rock>,
     grid: Vec<Vec<Tile>>,
     pub move_queue: VecDeque<Move>,
-    debug_mode: bool,
+    pub player_has_won: bool,
+    pub player_focused_view: bool,
 }
 
 impl Board {
-    pub fn new(rows: usize, cols: usize, start: Point, end: Point, rocks: Vec<Point>) -> Self {
+    pub fn new(
+        rows: usize,
+        cols: usize,
+        start: Point,
+        end: Point,
+        rocks: Vec<Point>,
+        player_focused_view: bool,
+    ) -> Self {
         let mut grid = vec![vec![Tile::Ice; cols]; rows];
 
         for r in 0..rows {
@@ -69,7 +78,8 @@ impl Board {
             rocks: rocks.iter().map(|r| Rock { pos: r.clone() }).collect(),
             grid,
             move_queue: VecDeque::new(),
-            debug_mode: false,
+            player_has_won: false,
+            player_focused_view,
         };
     }
 
@@ -120,7 +130,7 @@ impl Board {
         }
     }
 
-    pub fn random(cols: usize, rows: usize, percent_probability: u8) -> Self {
+    fn random(cols: usize, rows: usize, percent_probability: u8) -> Self {
         assert!(cols >= 3 && rows >= 3);
         let (start, end) = Board::get_random_start_and_end(cols, rows);
 
@@ -135,7 +145,7 @@ impl Board {
             }
         }
 
-        Board::new(rows, cols, start, end, rocks)
+        Board::new(rows, cols, start, end, rocks, true)
     }
 
     pub fn solvable_random(
@@ -145,13 +155,17 @@ impl Board {
         minimum_solution_length: u16,
     ) -> Self {
         disable_raw_mode().unwrap();
+        for i in get_introduction_section() {
+            println!("{}", i);
+        }
+
         let mut value = 1;
         let mut board = Board::random(cols, rows, percent_probability);
-        let mut time = time_elapsed::start("test");
+        let mut time = time_elapsed::start("level generator");
 
         let mut solver = Solver::from_board(&board);
         let mut solution = solver.solve();
-        let mut denominator = 1;
+        let mut denominator: u32 = 1;
 
         while !solution.is_solvable()
             || solution.solutions[0].chars().count() < minimum_solution_length.into()
@@ -160,25 +174,23 @@ impl Board {
             solver = Solver::from_board(&board);
             solution = solver.solve().clone();
             if value % denominator == 0 {
-                // println!("Number of iterations: {}", value);
-                denominator = denominator * 10;
-                time.log_overall(format!("Number of iterations: {}\t\t: ", value));
+                denominator *= 10;
+                time.log_overall(format!(
+                    "Boards generated: {:9}",
+                    value.separate_with_commas()
+                ));
             }
             value += 1;
-            // thread::sleep(Duration::from_millis(1000));
         }
         enable_raw_mode().unwrap();
         board
     }
 
     pub fn from_level(l: Level) -> Self {
-        Board::new(l.rows, l.cols, l.start, l.end, l.rocks)
+        Board::new(l.rows, l.cols, l.start, l.end, l.rocks, true)
     }
 
-    pub fn enable_debug_mode(self: &mut Self) {
-        self.debug_mode = true;
-    }
-
+    // TODO does this need to be public?
     pub fn reset(self: &mut Self) {
         self.update_player_position(self.start.pos.row, self.start.pos.col);
     }
@@ -218,6 +230,14 @@ impl Board {
     }
 
     pub fn render_board(self: &Self) -> Vec<String> {
+        if self.player_focused_view {
+            self.render_player_focused_board()
+        } else {
+            self.render_full_board()
+        }
+    }
+
+    fn render_player_focused_board(self: &Self) -> Vec<String> {
         let depth = 4;
 
         let mut result = Vec::new();
@@ -225,11 +245,6 @@ impl Board {
         let c_right = self.player.pos.col as isize + depth;
         let r_top = self.player.pos.row as isize - depth;
         let r_bottom = self.player.pos.row as isize + depth;
-
-        result.push(String::from(format!(
-            "{}; {}",
-            self.player.pos.col, self.player.pos.col as isize
-        )));
 
         for r in r_top..=r_bottom {
             let mut row_str = String::from("");
@@ -261,7 +276,7 @@ impl Board {
                                 row: r as usize,
                             },
                         ),
-                        Tile::Player => String::from("🟥"), // ◖◗
+                        Tile::Player => String::from("🟥"),
                         Tile::Ice => String::from("  "),
                     };
                     row_str.push_str(&tile_str);
@@ -272,37 +287,25 @@ impl Board {
         result
     }
 
-    // pub fn render_board(self: &Self) -> Vec<String> {
-    //     let mut result = Vec::new();
-    //     for r in 0..self.rows {
-    //         let mut row_str = String::from("");
-    //         for c in 0..self.cols {
-    //             let tile_str = match self.grid[r][c] {
-    //                 Tile::Wall => {
-    //                     if !self.debug_mode {
-    //                         String::from("██")
-    //                     } else {
-    //                         if r == 0 || r == self.rows - 1 {
-    //                             format!(" {:1}", c % 10).to_string()
-    //                         } else if c == 0 || c == self.cols - 1 {
-    //                             format!(" {:1}", r % 10).to_string()
-    //                         } else {
-    //                             String::from("██")
-    //                         }
-    //                     }
-    //                 }
-    //                 Tile::Rock => String::from("██"),
-    //                 Tile::Start => self.create_arrows(true, Point { col: c, row: r }),
-    //                 Tile::End => self.create_arrows(false, Point { col: c, row: r }),
-    //                 Tile::Player => String::from("🟥"), // ◖◗
-    //                 Tile::Ice => String::from("  "),
-    //             };
-    //             row_str.push_str(&tile_str);
-    //         }
-    //         result.push(row_str);
-    //     }
-    //     result
-    // }
+    fn render_full_board(self: &Self) -> Vec<String> {
+        let mut result = Vec::new();
+        for r in 0..self.rows {
+            let mut row_str = String::from("");
+            for c in 0..self.cols {
+                let tile_str = match self.grid[r][c] {
+                    Tile::Wall => String::from("██"),
+                    Tile::Rock => String::from("██"),
+                    Tile::Start => self.create_arrows(true, Point { col: c, row: r }),
+                    Tile::End => self.create_arrows(false, Point { col: c, row: r }),
+                    Tile::Player => String::from("🟥"),
+                    Tile::Ice => String::from("  "),
+                };
+                row_str.push_str(&tile_str);
+            }
+            result.push(row_str);
+        }
+        result
+    }
 
     pub fn steps_in_direction(self: &Self, direction: &Direction) -> u8 {
         let mut curr_pos = self.player.pos.clone();
@@ -365,6 +368,10 @@ impl Board {
         self.player.pos.col = new_col;
         self.grid[new_row][new_col] = Tile::Player;
 
+        if self.player_won() {
+            self.player_has_won = true;
+        }
+
         // Clean up the position where the player used to be.
         if prev_pos == self.start.pos {
             self.grid[prev_pos.row][prev_pos.col] = Tile::Start;
@@ -388,26 +395,31 @@ impl Board {
             None
         }
     }
+
     pub fn respond_to_input(self: &mut Self, key_code: KeyCode) {
-        let move_opt: Option<Move> = match key_code {
-            KeyCode::Char('w') | KeyCode::Up => self.create_slide_move(&Direction::Up),
-            KeyCode::Char('s') | KeyCode::Down => self.create_slide_move(&Direction::Down),
-            KeyCode::Char('a') | KeyCode::Left => self.create_slide_move(&Direction::Left),
-            KeyCode::Char('d') | KeyCode::Right => self.create_slide_move(&Direction::Right),
-            KeyCode::Char('\u{0020}') => Some(Move::Reset),
-            _ => None,
-        };
-        move_opt.map(|r#move| {
-            if let Move::Reset = r#move {
-                self.move_queue.clear();
-                if self.player.pos != self.start.pos {
-                    // Only queue the reset move if the player is not in the start position.
+        if !self.player_has_won {
+            let move_opt: Option<Move> = match key_code {
+                KeyCode::Char('w') | KeyCode::Up => self.create_slide_move(&Direction::Up),
+                KeyCode::Char('s') | KeyCode::Down => self.create_slide_move(&Direction::Down),
+                KeyCode::Char('a') | KeyCode::Left => self.create_slide_move(&Direction::Left),
+                KeyCode::Char('d') | KeyCode::Right => self.create_slide_move(&Direction::Right),
+                KeyCode::Char('v') | KeyCode::Char('V') => Some(Move::ChangeView),
+                KeyCode::Char('Q') => Some(Move::Exit),
+                KeyCode::Char('\u{0020}') => Some(Move::Reset),
+                _ => None,
+            };
+            move_opt.map(|r#move| {
+                if let Move::Reset = r#move {
+                    self.move_queue.clear();
+                    if self.player.pos != self.start.pos {
+                        // Only queue the reset move if the player is not in the start position.
+                        self.move_queue.push_back(r#move);
+                    }
+                } else {
                     self.move_queue.push_back(r#move);
                 }
-            } else {
-                self.move_queue.push_back(r#move);
-            }
-        });
+            });
+        }
     }
 
     pub fn move_player(self: &mut Self, dir: Direction) {
@@ -441,7 +453,8 @@ impl Board {
                     self.move_player(slide.direction)
                 }
                 Move::Reset => self.reset(),
-                Move::Teleport(p) => self.update_player_position(p.row, p.col),
+                Move::ChangeView => self.player_focused_view = !self.player_focused_view,
+                Move::Exit => exit_game(),
             })
     }
 }

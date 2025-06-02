@@ -1,46 +1,53 @@
 use crossterm::{execute, terminal};
 
 use crossterm::event::{
-    poll, read, Event, Event::Key, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers,
+    Event, Event::Key, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers,
 };
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
+use crossterm::terminal::enable_raw_mode;
 use crossterm::{cursor, queue, style};
 use std::io::{stdout, Stdout, Write};
 use std::iter::Iterator;
-use std::process;
 use std::thread;
 use std::time::Duration;
-pub struct Renderer<RenderFn, InputFn, MoveIterator>
+
+use crate::system::{exit_game, respond_to_input};
+
+pub struct Renderer<RenderFn, InputFn, MoveIterator, GameOver>
 where
     RenderFn: Fn() -> Vec<String>,
     InputFn: FnMut(KeyCode) -> (),
     MoveIterator: Iterator,
+    GameOver: Fn() -> bool,
 {
     sout: Stdout,
     render_function: RenderFn,
     input_handler: InputFn,
     change_iterator: MoveIterator,
+    game_over_function: GameOver,
     initial_render: bool,
     frame_delay_millis: u64,
 }
 
-impl<RenderFn, InputFn, MoveIterator> Renderer<RenderFn, InputFn, MoveIterator>
+impl<RenderFn, InputFn, MoveIterator, GameOver> Renderer<RenderFn, InputFn, MoveIterator, GameOver>
 where
     RenderFn: Fn() -> Vec<String>,
     InputFn: FnMut(KeyCode) -> (),
     MoveIterator: Iterator,
+    GameOver: Fn() -> bool,
 {
     pub fn new(
         render_function: RenderFn,
         input_handler: InputFn,
         change_iterator: MoveIterator,
+        game_over_function: GameOver,
         frame_delay_millis: u64,
-    ) -> Renderer<RenderFn, InputFn, MoveIterator> {
+    ) -> Renderer<RenderFn, InputFn, MoveIterator, GameOver> {
         Renderer {
             sout: stdout(),
             render_function,
             input_handler,
             change_iterator,
+            game_over_function,
             initial_render: false,
             frame_delay_millis,
         }
@@ -57,8 +64,7 @@ where
             {
                 match code {
                     KeyCode::Char(c) if c == 'c' && modifiers == KeyModifiers::CONTROL => {
-                        disable_raw_mode().unwrap();
-                        process::exit(130);
+                        exit_game();
                     }
                     keycode => (self.input_handler)(keycode),
                 }
@@ -75,19 +81,11 @@ where
 
     pub fn render_scene(self: &mut Self) {
         enable_raw_mode().unwrap();
-        loop {
-            // Do not delay when polling. It is simply a way to get
-            // the input handling logic to not block the thread.
-            match poll(Duration::from_millis(0)) {
-                Ok(input_found) => {
-                    if input_found {
-                        read().ok().map(|event| {
-                            self.key_input_handler(event);
-                        });
-                    }
-                }
-                Err(_) => (),
-            };
+
+        while !(self.game_over_function)() {
+            let mut event_handler = |event: Event| (self.key_input_handler(event));
+            respond_to_input(&mut event_handler);
+
             if !self.initial_render || self.render_next_frame() {
                 if !self.initial_render {
                     self.initial_render = true;

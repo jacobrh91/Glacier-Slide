@@ -75,5 +75,6 @@ impl Slide {
 pub enum Move {
     Reset,
     MovePlayer(Slide),
-    Teleport(Point),
+    ChangeView,
+    Exit,
 }
