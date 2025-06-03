@@ -1,14 +1,3 @@
-/*
-
--c, --columns  3-20 (default: 7)
--r, --rows     3-20 (default: 7)
--m, --moves-required 1-15. (default: 5)
-
--v, --full_level_view bool (default: false)
--p, --rock-percentage 10-50 (default: 15)
-
-
-*/
 use clap::{arg, command, Parser};
 use clap_num::number_range;
 
