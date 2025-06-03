@@ -6,7 +6,6 @@ use crossterm::event::KeyModifiers;
 use crossterm::event::{Event::Key, KeyCode, KeyEvent, KeyEventKind, KeyEventState};
 
 use std::cell::RefCell;
-use std::error::Error;
 use std::iter;
 use std::rc::Rc;
 
