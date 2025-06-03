@@ -1,9 +1,7 @@
-use serde::Deserialize;
-use serde::Serialize;
 use std::fmt::Debug;
 use std::fmt::Display;
 
-#[derive(PartialEq, Hash, Eq, Clone, Copy, Serialize, Deserialize)]
+#[derive(PartialEq, Hash, Eq, Clone, Copy)]
 pub struct Point {
     pub col: usize,
     pub row: usize,
