@@ -1,8 +1,6 @@
-use std::{error::Error, fmt};
+use std::fmt;
 
-use crate::board::point::Point;
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum Direction {
     Up,
     Down,
@@ -18,20 +16,6 @@ impl Direction {
             Direction::Down,
             Direction::Left,
         ]
-    }
-
-    pub fn from_string(s: &str) -> Result<Vec<Direction>, Box<dyn Error>> {
-        let mut results = Vec::new();
-        for c in s.chars() {
-            match c.to_ascii_uppercase() {
-                'U' => results.push(Direction::Up),
-                'D' => results.push(Direction::Down),
-                'L' => results.push(Direction::Left),
-                'R' => results.push(Direction::Right),
-                _ => return Err(format!("Unknown direction {}", c).into()),
-            }
-        }
-        Ok(results)
     }
 
     pub fn to_string(directions: Vec<Direction>) -> String {

@@ -1,10 +1,12 @@
 use crate::board::Board;
+use crate::game_state::GameState;
 use crate::renderer::Renderer;
 use crate::system::{clear_terminal, exit_game, respond_to_input};
 use crossterm::event::KeyModifiers;
 use crossterm::event::{Event::Key, KeyCode, KeyEvent, KeyEventKind, KeyEventState};
 
 use std::cell::RefCell;
+use std::error::Error;
 use std::iter;
 use std::rc::Rc;
 
@@ -16,18 +18,16 @@ pub fn get_introduction_section() -> Vec<String> {
 / /_/ // // /_/ // /__ / //  __// /      ___/ // // // /_/ //  __/
 \____//_/ \__,_/ \___//_/ \___//_/      /____//_//_/ \__,_/ \___/ 
   
-  Use WASD or the arrow keys to move.
+  Use 'WASD' or the arrow keys to move.
   Press 'SPACE' to restart.
   Press 'V' or 'v' to change the view.
   Press 'Q' or 'Ctrl-C' to exit.
-
 ";
     let parts: Vec<String> = intro.split("\n").map(|x| String::from(x)).collect();
     parts
 }
 
 fn play_next_input_handler(play_again_signal: &mut bool) {
-    // Poll without a delay.
     let mut event_handler = |event: crossterm::event::Event| {
         if let Key(key_event) = event {
             if let KeyEvent {
@@ -51,27 +51,25 @@ fn play_next_input_handler(play_again_signal: &mut bool) {
     respond_to_input(&mut event_handler);
 }
 
-pub fn start_game() {
+pub fn start_game(game_state: GameState) {
     clear_terminal();
-    let mut boards_solved: u16 = 0;
-    // Generate next puzzle
+    let game_config = game_state.config.clone();
+
+    let rc_game_state = Rc::new(RefCell::new(game_state));
 
     loop {
-        let mut board = Board::solvable_random(12, 12, 15, 5);
-        play_board(&mut board, boards_solved);
+        let mut board = Board::generate_solvable_board(game_config);
+        board.attach_game_state(Rc::clone(&rc_game_state));
 
+        play_board(&mut board);
         let mut play_next_game = false;
-
         while !play_next_game {
             play_next_input_handler(&mut play_next_game)
         }
-
-        // clear_terminal();
-        boards_solved += 1;
     }
 }
 
-fn play_board(board: &mut Board, boards_solved: u16) {
+fn play_board(board: &mut Board) {
     clear_terminal();
 
     let rc_board = Rc::new(RefCell::new(board));
@@ -81,15 +79,22 @@ fn play_board(board: &mut Board, boards_solved: u16) {
         let board_section = rc_board.borrow().render_board();
         output.extend(board_section);
         let pos = rc_board.borrow().player.pos;
-        let boards_solved: String = format!("Levels solved: {}", boards_solved);
+
+        let mut winning_text = String::from("");
+        if rc_board.borrow_mut().player_won() {
+            winning_text = String::from("You won! Press 'Space' to play again.");
+        }
+
+        let solved_count: u16 = rc_board
+            .borrow()
+            .game_state
+            .as_ref()
+            .map(|x| x.borrow().levels_solved)
+            .unwrap_or_else(|| 0);
+        let boards_solved: String = format!("Levels solved: {}", solved_count);
         let current_position: String = format!("Position: {}, {}", pos.col, pos.row);
         let move_queue: String = format!("Move Queue: {:?}", rc_board.borrow().move_queue);
 
-        let mut winning_text = String::from("");
-        // If the player has won, display this text.
-        if rc_board.borrow().player_won() {
-            winning_text = String::from("You won! Press 'Space' to play again.");
-        }
         output.push(winning_text);
         output.push(String::from("\n"));
         output.push(boards_solved);

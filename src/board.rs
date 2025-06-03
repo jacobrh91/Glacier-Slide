@@ -1,53 +1,50 @@
 mod direction;
-mod level_reader;
 mod point;
-mod solver;
+mod solution;
 
 mod tile;
-use crate::{game::get_introduction_section, system::exit_game};
+use crate::{
+    game::get_introduction_section,
+    game_state::{GameConfig, GameState},
+    system::{clear_terminal, exit_game},
+};
 
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use direction::{Direction, Move, Slide};
-use solver::Solver;
+use solution::Solution;
 use time_elapsed;
 
 use crossterm::event::KeyCode;
-use level_reader::Level;
 use point::Point;
 use rand::Rng;
 
 use thousands::Separable;
 
 use std::{
-    collections::VecDeque,
+    cell::RefCell,
+    collections::{HashSet, VecDeque},
     hash::{DefaultHasher, Hash, Hasher},
+    rc::Rc,
 };
 use tile::{End, Player, Rock, Start, Tile};
 
 // Board coordinates start at 0, 0 in the top left corner
-#[derive(Debug, Clone)]
 pub struct Board {
-    rows: usize,
-    cols: usize,
-    pub start: Start,
-    pub end: End,
+    rows: usize, // Value includes the left and right border columns
+    cols: usize, // Value includes the top and bottom border rows
+    start: Start,
+    end: End,
     pub player: Player,
     rocks: Vec<Rock>,
     grid: Vec<Vec<Tile>>,
     pub move_queue: VecDeque<Move>,
     pub player_has_won: bool,
-    pub player_focused_view: bool,
+    bot_is_solving: bool,
+    pub game_state: Option<Rc<RefCell<GameState>>>,
 }
 
 impl Board {
-    pub fn new(
-        rows: usize,
-        cols: usize,
-        start: Point,
-        end: Point,
-        rocks: Vec<Point>,
-        player_focused_view: bool,
-    ) -> Self {
+    pub fn new(rows: usize, cols: usize, start: Point, end: Point, rocks: Vec<Point>) -> Self {
         let mut grid = vec![vec![Tile::Ice; cols]; rows];
 
         for r in 0..rows {
@@ -79,8 +76,15 @@ impl Board {
             grid,
             move_queue: VecDeque::new(),
             player_has_won: false,
-            player_focused_view,
+            bot_is_solving: false,
+            game_state: None,
         };
+    }
+
+    // Game state is not needed when generating solvable boards, but
+    //   is needed when the level is being played.
+    pub fn attach_game_state(self: &mut Self, game_state: Rc<RefCell<GameState>>) {
+        self.game_state = Some(game_state);
     }
 
     fn get_random_start_and_end(cols: usize, rows: usize) -> (Point, Point) {
@@ -130,49 +134,41 @@ impl Board {
         }
     }
 
-    fn random(cols: usize, rows: usize, percent_probability: u8) -> Self {
-        assert!(cols >= 3 && rows >= 3);
-        let (start, end) = Board::get_random_start_and_end(cols, rows);
+    fn generate_random_board(game_config: GameConfig) -> Self {
+        assert!(game_config.cols >= 3 && game_config.rows >= 3);
+        let (start, end) = Board::get_random_start_and_end(game_config.cols, game_config.rows);
 
         let mut rocks = Vec::new();
-        let col_right_bound = cols - 2;
-        let row_bottom_bound = rows - 2;
+        let col_right_bound = game_config.cols - 2;
+        let row_bottom_bound = game_config.rows - 2;
         for c in 1..=col_right_bound {
             for r in 1..=row_bottom_bound {
-                if let Some(r) = Board::generate_rock(c, r, percent_probability) {
+                if let Some(r) = Board::generate_rock(c, r, game_config.rock_probability) {
                     rocks.push(r);
                 }
             }
         }
 
-        Board::new(rows, cols, start, end, rocks, true)
+        Board::new(game_config.rows, game_config.cols, start, end, rocks)
     }
 
-    pub fn solvable_random(
-        cols: usize,
-        rows: usize,
-        percent_probability: u8,
-        minimum_solution_length: u16,
-    ) -> Self {
+    pub fn generate_solvable_board(game_config: GameConfig) -> Self {
+        clear_terminal();
         disable_raw_mode().unwrap();
         for i in get_introduction_section() {
             println!("{}", i);
         }
 
-        let mut value = 1;
-        let mut board = Board::random(cols, rows, percent_probability);
         let mut time = time_elapsed::start("level generator");
-
-        let mut solver = Solver::from_board(&board);
-        let mut solution = solver.solve();
+        let mut value = 1;
         let mut denominator: u32 = 1;
 
-        while !solution.is_solvable()
-            || solution.solutions[0].chars().count() < minimum_solution_length.into()
-        {
-            board = Board::random(cols, rows, percent_probability);
-            solver = Solver::from_board(&board);
-            solution = solver.solve().clone();
+        let mut board: Board;
+
+        loop {
+            board = Board::generate_random_board(game_config);
+            let solution: Solution = board.solve();
+
             if value % denominator == 0 {
                 denominator *= 10;
                 time.log_overall(format!(
@@ -181,18 +177,16 @@ impl Board {
                 ));
             }
             value += 1;
+
+            if solution.is_solvable()
+                && solution.solutions[0].chars().count()
+                    >= game_config.minimum_moves_required.into()
+            {
+                break;
+            }
         }
         enable_raw_mode().unwrap();
         board
-    }
-
-    pub fn from_level(l: Level) -> Self {
-        Board::new(l.rows, l.cols, l.start, l.end, l.rocks, true)
-    }
-
-    // TODO does this need to be public?
-    pub fn reset(self: &mut Self) {
-        self.update_player_position(self.start.pos.row, self.start.pos.col);
     }
 
     fn create_arrows(self: &Self, start_position: bool, p: Point) -> String {
@@ -230,7 +224,13 @@ impl Board {
     }
 
     pub fn render_board(self: &Self) -> Vec<String> {
-        if self.player_focused_view {
+        let player_focused_view = self
+            .game_state
+            .as_ref()
+            .map(|x| x.borrow().player_focused_view)
+            .unwrap_or_else(|| true);
+
+        if player_focused_view {
             self.render_player_focused_board()
         } else {
             self.render_full_board()
@@ -250,7 +250,8 @@ impl Board {
             let mut row_str = String::from("");
             for c in c_left..=c_right {
                 if c < 0 || c as usize >= self.cols || r < 0 || r as usize >= self.rows {
-                    // deterministic, but unpredictable.
+                    // Deriving the border noise from a hash of the rock data is deterministic, but unpredictable.
+                    // If it were simply random, the border rocks would change completely every frame.
                     let rock_positions: Vec<Point> = self.rocks.iter().map(|r| r.pos).collect();
                     let v = Board::calculate_hash(&((c, r), rock_positions));
 
@@ -307,7 +308,7 @@ impl Board {
         result
     }
 
-    pub fn steps_in_direction(self: &Self, direction: &Direction) -> u8 {
+    fn steps_in_direction(self: &Self, direction: &Direction) -> u8 {
         let mut curr_pos = self.player.pos.clone();
         let mut steps: u8 = 0;
         let mut stop = false;
@@ -360,25 +361,30 @@ impl Board {
         steps
     }
 
-    pub fn update_player_position(self: &mut Self, new_row: usize, new_col: usize) {
-        // Cloning because this after moving the player, we need to know how to restore the previous tile.
-        let prev_pos = self.player.pos.clone();
+    fn update_player_position(self: &mut Self, new_row: usize, new_col: usize) {
+        if self.player.pos.row != new_row || self.player.pos.col != new_col {
+            // Cloning because this after moving the player, we need to know how to restore the previous tile.
+            let prev_pos = self.player.pos.clone();
 
-        self.player.pos.row = new_row;
-        self.player.pos.col = new_col;
-        self.grid[new_row][new_col] = Tile::Player;
+            self.player.pos.row = new_row;
+            self.player.pos.col = new_col;
+            self.grid[new_row][new_col] = Tile::Player;
 
-        if self.player_won() {
-            self.player_has_won = true;
-        }
+            if self.player_won() && !self.bot_is_solving {
+                self.player_has_won = true;
+                self.game_state
+                    .as_mut()
+                    .map(|x| x.borrow_mut().levels_solved += 1);
+            }
 
-        // Clean up the position where the player used to be.
-        if prev_pos == self.start.pos {
-            self.grid[prev_pos.row][prev_pos.col] = Tile::Start;
-        } else if prev_pos == self.end.pos {
-            self.grid[prev_pos.row][prev_pos.col] = Tile::End;
-        } else {
-            self.grid[prev_pos.row][prev_pos.col] = Tile::Ice;
+            // Clean up the position where the player used to be.
+            if prev_pos == self.start.pos {
+                self.grid[prev_pos.row][prev_pos.col] = Tile::Start;
+            } else if prev_pos == self.end.pos {
+                self.grid[prev_pos.row][prev_pos.col] = Tile::End;
+            } else {
+                self.grid[prev_pos.row][prev_pos.col] = Tile::Ice;
+            }
         }
     }
 
@@ -432,7 +438,7 @@ impl Board {
         self.update_player_position(new_row, new_col)
     }
 
-    pub fn player_won(self: &Self) -> bool {
+    pub fn player_won(self: &mut Self) -> bool {
         self.player.pos == self.end.pos
     }
 
@@ -452,9 +458,97 @@ impl Board {
                     }
                     self.move_player(slide.direction)
                 }
-                Move::Reset => self.reset(),
-                Move::ChangeView => self.player_focused_view = !self.player_focused_view,
+                Move::Reset => self.update_player_position(self.start.pos.row, self.start.pos.col),
+                Move::ChangeView => {
+                    if let Some(game_state) = &self.game_state {
+                        let mut game_state_ref = game_state.borrow_mut();
+                        game_state_ref.player_focused_view = !game_state_ref.player_focused_view;
+                    }
+                }
                 Move::Exit => exit_game(),
             })
+    }
+
+    fn solve(self: &mut Self) -> Solution {
+        let cache = HashSet::<Point>::new();
+        let mut search_steps = Box::new(0u32);
+        let mut solutions = Vec::new();
+
+        let curr_position = self.start.pos.clone();
+        self.bot_is_solving = true;
+
+        self.solve_rec(
+            Vec::new(),
+            curr_position,
+            cache,
+            &mut solutions,
+            &mut search_steps,
+        );
+        // After solving, return the player to the start
+        self.update_player_position(self.start.pos.row, self.start.pos.col);
+        self.bot_is_solving = false;
+        self.player_has_won = false;
+
+        let mut clean_solutions: Vec<String> = solutions
+            .into_iter()
+            .map(|s| Direction::to_string(s))
+            .collect::<Vec<_>>();
+        clean_solutions.sort_by(|a, b| b.chars().count().cmp(&a.chars().count()));
+        clean_solutions.reverse();
+
+        Solution {
+            solutions: clean_solutions,
+        }
+    }
+
+    fn solve_rec(
+        self: &mut Self,
+        prev_moves: Vec<Direction>,
+        curr_position: Point,
+        mut cache: HashSet<Point>,
+        solutions: &mut Vec<Vec<Direction>>,
+        search_steps: &mut Box<u32>,
+    ) {
+        self.update_player_position(curr_position.row, curr_position.col);
+
+        if self.player_won() {
+            solutions.push(prev_moves);
+        } else if !cache.contains(&curr_position) {
+            cache.insert(self.player.pos.clone());
+            for direction in self.get_possible_moves(prev_moves.last()) {
+                self.update_player_position(curr_position.row, curr_position.col);
+                let steps = self.steps_in_direction(&direction);
+                if steps > 0 {
+                    **search_steps += 1;
+                    let mut updated_moves = prev_moves.clone();
+                    updated_moves.push(direction);
+                    // Move the player for the solve function.
+                    for _ in 0..steps {
+                        self.move_player(direction);
+                    }
+                    let curr_position = self.player.pos.clone();
+                    self.solve_rec(
+                        updated_moves,
+                        curr_position,
+                        cache.clone(),
+                        solutions,
+                        search_steps,
+                    );
+                }
+            }
+        }
+    }
+
+    fn get_possible_moves(self: &Self, previous_move_opt: Option<&Direction>) -> Vec<Direction> {
+        previous_move_opt
+            .map(|previous_move| {
+                // If the previous move exists, the next move must be in an orthogonal direction.
+                if *previous_move == Direction::Up || *previous_move == Direction::Down {
+                    vec![Direction::Right, Direction::Left]
+                } else {
+                    vec![Direction::Up, Direction::Down]
+                }
+            })
+            .unwrap_or_else(|| Vec::from(Direction::all()))
     }
 }
