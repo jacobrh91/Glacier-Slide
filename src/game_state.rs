@@ -14,16 +14,17 @@ pub struct GameState {
 
 impl GameState {
     pub fn new(
-        cols: usize,
-        rows: usize,
+        cols: u8,
+        rows: u8,
         rock_probability: u8,
         minimum_moves_required: u8,
         player_focused_view: bool,
     ) -> Self {
         GameState {
             config: GameConfig {
-                cols,
-                rows,
+                // Add 2 to the column and row bounds to add the top/bottom or left/right borders to the column/row count.
+                cols: (cols + 2) as usize,
+                rows: (rows + 2) as usize,
                 rock_probability,
                 minimum_moves_required,
             },
