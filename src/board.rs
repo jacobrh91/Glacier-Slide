@@ -171,7 +171,7 @@ impl Board {
         }
 
         let mut time: Option<TimeElapsed> = None;
-        let mut value: u32 = 1;
+        let mut board_count: u32 = 1;
         let mut denominator: u32 = 1;
 
         if game_config.debug_mode {
@@ -183,19 +183,23 @@ impl Board {
         let mut board: Board;
 
         loop {
+            if board_count > 1_000_000 {
+                println!("Could not find solvable level after 1,000,000 attempts. Adjust board parameters.");
+                exit_game();
+            }
             board = Board::generate_random_board(game_config);
 
             if game_config.debug_mode {
-                if value % denominator == 0 {
+                if board_count % denominator == 0 {
                     denominator *= 10;
                     // Unwrap here because if debug_mode is enabled, time is always set.
                     time.as_mut().unwrap().log_overall(format!(
                         "Boards generated: {:9}",
-                        value.separate_with_commas()
+                        board_count.separate_with_commas()
                     ));
                 }
-                value += 1;
             }
+            board_count += 1;
 
             let max_depth = game_config.minimum_moves_required + 2;
 
