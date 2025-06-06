@@ -20,6 +20,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         cli.rock_percentage,
         cli.moves_required,
         !cli.full_level_view,
+        cli.debug_mode,
     );
     game::start_game(game_state);
     Ok(())

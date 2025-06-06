@@ -3,13 +3,15 @@ pub struct GameConfig {
     pub cols: usize,
     pub rows: usize,
     pub rock_probability: u8, // as a percentage
-    pub minimum_moves_required: u8,
+    pub minimum_moves_required: u16,
 }
 
 pub struct GameState {
     pub config: GameConfig,
     pub levels_solved: u16,
     pub player_focused_view: bool,
+    pub debug_mode: bool,
+    pub display_solution: bool,
 }
 
 impl GameState {
@@ -17,8 +19,9 @@ impl GameState {
         cols: u8,
         rows: u8,
         rock_probability: u8,
-        minimum_moves_required: u8,
+        minimum_moves_required: u16,
         player_focused_view: bool,
+        debug_mode: bool,
     ) -> Self {
         GameState {
             config: GameConfig {
@@ -30,6 +33,8 @@ impl GameState {
             },
             levels_solved: 0,
             player_focused_view,
+            debug_mode,
+            display_solution: false,
         }
     }
 }

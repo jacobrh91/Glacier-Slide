@@ -60,5 +60,6 @@ pub enum Move {
     Reset,
     MovePlayer(Slide),
     ChangeView,
+    ShowSolution,
     Exit,
 }

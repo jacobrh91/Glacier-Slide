@@ -14,7 +14,7 @@ use crate::system::{exit_game, respond_to_input};
 
 pub struct Renderer<RenderFn, InputFn, MoveIterator, GameOver>
 where
-    RenderFn: FnMut() -> Vec<String>,
+    RenderFn: Fn() -> Vec<String>,
     InputFn: FnMut(KeyCode) -> (),
     MoveIterator: Iterator,
     GameOver: Fn() -> bool,
@@ -30,7 +30,7 @@ where
 
 impl<RenderFn, InputFn, MoveIterator, GameOver> Renderer<RenderFn, InputFn, MoveIterator, GameOver>
 where
-    RenderFn: FnMut() -> Vec<String>,
+    RenderFn: Fn() -> Vec<String>,
     InputFn: FnMut(KeyCode) -> (),
     MoveIterator: Iterator,
     GameOver: Fn() -> bool,

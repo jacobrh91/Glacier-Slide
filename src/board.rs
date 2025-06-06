@@ -1,6 +1,5 @@
 mod direction;
 mod point;
-mod solution;
 
 mod tile;
 use crate::{
@@ -11,7 +10,6 @@ use crate::{
 
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use direction::{Direction, Move, Slide};
-use solution::Solution;
 use time_elapsed;
 
 use crossterm::event::KeyCode;
@@ -40,6 +38,7 @@ pub struct Board {
     pub move_queue: VecDeque<Move>,
     pub player_has_won: bool,
     bot_is_solving: bool,
+    pub solution: Option<Vec<Direction>>,
     pub game_state: Option<Rc<RefCell<GameState>>>,
 }
 
@@ -77,6 +76,7 @@ impl Board {
             move_queue: VecDeque::new(),
             player_has_won: false,
             bot_is_solving: false,
+            solution: None,
             game_state: None,
         };
     }
@@ -85,6 +85,12 @@ impl Board {
     //   is needed when the level is being played.
     pub fn attach_game_state(self: &mut Self, game_state: Rc<RefCell<GameState>>) {
         self.game_state = Some(game_state);
+    }
+
+    pub fn get_solution_string(self: &Self) -> Option<String> {
+        self.solution
+            .as_ref()
+            .map(|x| Direction::to_string(x.to_vec()))
     }
 
     fn get_random_start_and_end(cols: usize, rows: usize) -> (Point, Point) {
@@ -167,7 +173,6 @@ impl Board {
 
         loop {
             board = Board::generate_random_board(game_config);
-            let solution: Solution = board.solve();
 
             if value % denominator == 0 {
                 denominator *= 10;
@@ -178,11 +183,13 @@ impl Board {
             }
             value += 1;
 
-            if solution.is_solvable()
-                && solution.solutions[0].chars().count()
-                    >= game_config.minimum_moves_required.into()
-            {
-                break;
+            let max_depth = game_config.minimum_moves_required + 2;
+
+            if let Some(solution) = board.solve(max_depth) {
+                if solution.len() >= game_config.minimum_moves_required.into() {
+                    board.solution = Some(solution);
+                    break;
+                }
             }
         }
         enable_raw_mode().unwrap();
@@ -410,6 +417,7 @@ impl Board {
                 KeyCode::Char('a') | KeyCode::Left => self.create_slide_move(&Direction::Left),
                 KeyCode::Char('d') | KeyCode::Right => self.create_slide_move(&Direction::Right),
                 KeyCode::Char('v') | KeyCode::Char('V') => Some(Move::ChangeView),
+                KeyCode::Char('g') | KeyCode::Char('G') => Some(Move::ShowSolution),
                 KeyCode::Char('Q') => Some(Move::Exit),
                 KeyCode::Char('\u{0020}') => Some(Move::Reset),
                 _ => None,
@@ -438,7 +446,7 @@ impl Board {
         self.update_player_position(new_row, new_col)
     }
 
-    pub fn player_won(self: &mut Self) -> bool {
+    pub fn player_won(self: &Self) -> bool {
         self.player.pos == self.end.pos
     }
 
@@ -459,6 +467,12 @@ impl Board {
                     self.move_player(slide.direction)
                 }
                 Move::Reset => self.update_player_position(self.start.pos.row, self.start.pos.col),
+                Move::ShowSolution => {
+                    if let Some(game_state) = &self.game_state {
+                        let mut game_state_ref = game_state.borrow_mut();
+                        game_state_ref.display_solution = true;
+                    }
+                }
                 Move::ChangeView => {
                     if let Some(game_state) = &self.game_state {
                         let mut game_state_ref = game_state.borrow_mut();
@@ -469,74 +483,52 @@ impl Board {
             })
     }
 
-    fn solve(self: &mut Self) -> Solution {
-        let cache = HashSet::<Point>::new();
-        let mut search_steps = Box::new(0u32);
-        let mut solutions = Vec::new();
+    fn solve(self: &mut Self, max_depth: u16) -> Option<Vec<Direction>> {
+        let mut visited = HashSet::<Point>::new();
 
-        let curr_position = self.start.pos.clone();
+        let mut edges_traversed: u32 = 0;
+        let mut solution: Option<Vec<Direction>> = None;
+
         self.bot_is_solving = true;
 
-        self.solve_rec(
-            Vec::new(),
-            curr_position,
-            cache,
-            &mut solutions,
-            &mut search_steps,
-        );
-        // After solving, return the player to the start
+        // Breadth-first search guarantees the first solution we find is the shortest (if there is a solution).
+        let mut bfs_queue = VecDeque::new();
+        bfs_queue.push_back((Vec::<Direction>::new(), self.start.pos.clone()));
+
+        while !bfs_queue.is_empty() {
+            let (parent_prev, parent_pos) = bfs_queue.pop_front().unwrap();
+            if parent_pos == self.end.pos {
+                solution = Some(parent_prev);
+                break;
+            } else if parent_prev.len() > max_depth.into() {
+                break;
+            } else if !visited.contains(&parent_pos) {
+                visited.insert(parent_pos);
+                edges_traversed += 1;
+
+                // Find possible next moves
+                for direction in self.get_possible_moves(parent_prev.last()) {
+                    // Reset the player to the parent position
+                    self.update_player_position(parent_pos.row, parent_pos.col);
+                    let steps = self.steps_in_direction(&direction);
+                    if steps > 0 {
+                        let mut child_moves = parent_prev.clone();
+                        child_moves.push(direction);
+                        for _ in 0..steps {
+                            self.move_player(direction);
+                        }
+                        let child_position = self.player.pos.clone();
+                        bfs_queue.push_back((child_moves, child_position));
+                    }
+                }
+            }
+        }
+        // After solving (or giving up due to the search depth), return the player to the start
         self.update_player_position(self.start.pos.row, self.start.pos.col);
         self.bot_is_solving = false;
         self.player_has_won = false;
 
-        let mut clean_solutions: Vec<String> = solutions
-            .into_iter()
-            .map(|s| Direction::to_string(s))
-            .collect::<Vec<_>>();
-        clean_solutions.sort_by(|a, b| b.chars().count().cmp(&a.chars().count()));
-        clean_solutions.reverse();
-
-        Solution {
-            solutions: clean_solutions,
-        }
-    }
-
-    fn solve_rec(
-        self: &mut Self,
-        prev_moves: Vec<Direction>,
-        curr_position: Point,
-        mut cache: HashSet<Point>,
-        solutions: &mut Vec<Vec<Direction>>,
-        search_steps: &mut Box<u32>,
-    ) {
-        self.update_player_position(curr_position.row, curr_position.col);
-
-        if self.player_won() {
-            solutions.push(prev_moves);
-        } else if !cache.contains(&curr_position) {
-            cache.insert(self.player.pos.clone());
-            for direction in self.get_possible_moves(prev_moves.last()) {
-                self.update_player_position(curr_position.row, curr_position.col);
-                let steps = self.steps_in_direction(&direction);
-                if steps > 0 {
-                    **search_steps += 1;
-                    let mut updated_moves = prev_moves.clone();
-                    updated_moves.push(direction);
-                    // Move the player for the solve function.
-                    for _ in 0..steps {
-                        self.move_player(direction);
-                    }
-                    let curr_position = self.player.pos.clone();
-                    self.solve_rec(
-                        updated_moves,
-                        curr_position,
-                        cache.clone(),
-                        solutions,
-                        search_steps,
-                    );
-                }
-            }
-        }
+        solution
     }
 
     fn get_possible_moves(self: &Self, previous_move_opt: Option<&Direction>) -> Vec<Direction> {
