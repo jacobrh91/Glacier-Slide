@@ -119,7 +119,7 @@ fn play_board(board: &mut Board) {
         let (debug_mode, player_gave_up) = game_state_opt
             .map(|x| {
                 let game_state = x.borrow();
-                (game_state.debug_mode, game_state.display_solution)
+                (game_state.config.debug_mode, game_state.display_solution)
             })
             .unwrap_or_else(|| (false, false));
 
@@ -128,7 +128,9 @@ fn play_board(board: &mut Board) {
         ///////////////////////////////////////////////////////////////
         if debug_mode || player_gave_up {
             let solution_str = borrowed_board
-                .get_solution_string()
+                .solution
+                .as_ref()
+                .and_then(|x| x.get_solution_string())
                 .unwrap_or_else(|| String::from("Unknown"));
             let solution: String = format!("Solution: {}", solution_str);
             output.push(solution);
@@ -144,15 +146,15 @@ fn play_board(board: &mut Board) {
             let move_queue: String =
                 format!("Move Queue: {:?}", interior_mut_board.borrow().move_queue);
             output.push(move_queue);
-            // let edges_traversed = borrowed_board
-            //     .solution
-            //     .as_ref()
-            //     .map(|x| x.edges_traversed.to_string())
-            //     .unwrap_or_else(|| String::from("Unknown"));
-            // output.push(format!(
-            //     "Edges traversed to find solution: {}",
-            //     edges_traversed
-            // ))
+            let edges_traversed = borrowed_board
+                .solution
+                .as_ref()
+                .map(|x| x.edges_traversed.to_string())
+                .unwrap_or_else(|| String::from("Unknown"));
+            output.push(format!(
+                "Edges traversed to find solution: {}",
+                edges_traversed
+            ))
         }
         output
     };

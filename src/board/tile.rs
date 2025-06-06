@@ -15,8 +15,7 @@ pub struct End {
     pub pos: Point,
 }
 
-// TODO remove clones
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct Rock {
     pub pos: Point,
 }

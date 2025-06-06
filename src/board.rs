@@ -1,7 +1,8 @@
 mod direction;
 mod point;
-
+mod solution;
 mod tile;
+
 use crate::{
     game::get_introduction_section,
     game_state::{GameConfig, GameState},
@@ -10,7 +11,8 @@ use crate::{
 
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use direction::{Direction, Move, Slide};
-use time_elapsed;
+use solution::Solution;
+use time_elapsed::{self, TimeElapsed};
 
 use crossterm::event::KeyCode;
 use point::Point;
@@ -38,7 +40,7 @@ pub struct Board {
     pub move_queue: VecDeque<Move>,
     pub player_has_won: bool,
     bot_is_solving: bool,
-    pub solution: Option<Vec<Direction>>,
+    pub solution: Option<Solution>,
     pub game_state: Option<Rc<RefCell<GameState>>>,
 }
 
@@ -85,12 +87,6 @@ impl Board {
     //   is needed when the level is being played.
     pub fn attach_game_state(self: &mut Self, game_state: Rc<RefCell<GameState>>) {
         self.game_state = Some(game_state);
-    }
-
-    pub fn get_solution_string(self: &Self) -> Option<String> {
-        self.solution
-            .as_ref()
-            .map(|x| Direction::to_string(x.to_vec()))
     }
 
     fn get_random_start_and_end(cols: usize, rows: usize) -> (Point, Point) {
@@ -142,20 +138,29 @@ impl Board {
 
     fn generate_random_board(game_config: GameConfig) -> Self {
         assert!(game_config.cols >= 3 && game_config.rows >= 3);
-        let (start, end) = Board::get_random_start_and_end(game_config.cols, game_config.rows);
+        let (start, end) =
+            Board::get_random_start_and_end(game_config.cols as usize, game_config.rows as usize);
 
         let mut rocks = Vec::new();
         let col_right_bound = game_config.cols - 2;
         let row_bottom_bound = game_config.rows - 2;
         for c in 1..=col_right_bound {
             for r in 1..=row_bottom_bound {
-                if let Some(r) = Board::generate_rock(c, r, game_config.rock_probability) {
+                if let Some(r) =
+                    Board::generate_rock(c as usize, r as usize, game_config.rock_probability)
+                {
                     rocks.push(r);
                 }
             }
         }
 
-        Board::new(game_config.rows, game_config.cols, start, end, rocks)
+        Board::new(
+            game_config.rows as usize,
+            game_config.cols as usize,
+            start,
+            end,
+            rocks,
+        )
     }
 
     pub fn generate_solvable_board(game_config: GameConfig) -> Self {
@@ -165,31 +170,48 @@ impl Board {
             println!("{}", i);
         }
 
-        let mut time = time_elapsed::start("level generator");
-        let mut value = 1;
+        let mut time: Option<TimeElapsed> = None;
+        let mut value: u32 = 1;
         let mut denominator: u32 = 1;
+
+        if game_config.debug_mode {
+            time = Some(time_elapsed::start("level generator"));
+        } else {
+            println!("Generating level...");
+        }
 
         let mut board: Board;
 
         loop {
             board = Board::generate_random_board(game_config);
 
-            if value % denominator == 0 {
-                denominator *= 10;
-                time.log_overall(format!(
-                    "Boards generated: {:9}",
-                    value.separate_with_commas()
-                ));
+            if game_config.debug_mode {
+                if value % denominator == 0 {
+                    denominator *= 10;
+                    // Unwrap here because if debug_mode is enabled, time is always set.
+                    time.as_mut().unwrap().log_overall(format!(
+                        "Boards generated: {:9}",
+                        value.separate_with_commas()
+                    ));
+                }
+                value += 1;
             }
-            value += 1;
 
             let max_depth = game_config.minimum_moves_required + 2;
 
-            if let Some(solution) = board.solve(max_depth) {
-                if solution.len() >= game_config.minimum_moves_required.into() {
-                    board.solution = Some(solution);
-                    break;
-                }
+            board.solve(max_depth);
+
+            let solution_found = &board
+                .solution
+                .as_ref()
+                .and_then(|x| {
+                    x.steps
+                        .as_ref()
+                        .map(|y| y.len() >= game_config.minimum_moves_required.into())
+                })
+                .unwrap_or_else(|| false);
+            if *solution_found {
+                break;
             }
         }
         enable_raw_mode().unwrap();
@@ -483,11 +505,12 @@ impl Board {
             })
     }
 
-    fn solve(self: &mut Self, max_depth: u16) -> Option<Vec<Direction>> {
+    fn solve(self: &mut Self, max_depth: u16) {
         let mut visited = HashSet::<Point>::new();
 
-        let mut edges_traversed: u32 = 0;
-        let mut solution: Option<Vec<Direction>> = None;
+        let mut solution = Solution::new();
+        // let mut edges_traversed: u32 = 0;
+        // let mut solution: Option<Vec<Direction>> = None;
 
         self.bot_is_solving = true;
 
@@ -498,13 +521,13 @@ impl Board {
         while !bfs_queue.is_empty() {
             let (parent_prev, parent_pos) = bfs_queue.pop_front().unwrap();
             if parent_pos == self.end.pos {
-                solution = Some(parent_prev);
+                solution.steps = Some(parent_prev);
                 break;
             } else if parent_prev.len() > max_depth.into() {
                 break;
             } else if !visited.contains(&parent_pos) {
                 visited.insert(parent_pos);
-                edges_traversed += 1;
+                solution.edges_traversed += 1;
 
                 // Find possible next moves
                 for direction in self.get_possible_moves(parent_prev.last()) {
@@ -528,7 +551,7 @@ impl Board {
         self.bot_is_solving = false;
         self.player_has_won = false;
 
-        solution
+        self.solution = Some(solution);
     }
 
     fn get_possible_moves(self: &Self, previous_move_opt: Option<&Direction>) -> Vec<Direction> {
