@@ -119,7 +119,7 @@ fn play_board(board: &mut Board) {
         let (debug_mode, player_gave_up) = game_state_opt
             .map(|x| {
                 let game_state = x.borrow();
-                (game_state.config.debug_mode, game_state.display_solution)
+                (game_state.config.debug, game_state.display_solution)
             })
             .unwrap_or_else(|| (false, false));
 

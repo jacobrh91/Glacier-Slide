@@ -29,7 +29,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         cli.moves_required
             .unwrap_or_else(|| config.minimum_moves_required),
         !cli.full_level_view,
-        cli.debug_mode,
+        cli.debug,
     );
     game::start_game(game_state);
     Ok(())

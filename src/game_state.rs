@@ -4,7 +4,7 @@ pub struct GameConfig {
     pub rows: u8,
     pub rock_probability: u8, // as a percentage
     pub minimum_moves_required: u16,
-    pub debug_mode: bool,
+    pub debug: bool,
 }
 
 impl GameConfig {
@@ -14,7 +14,7 @@ impl GameConfig {
             rows: 7,
             minimum_moves_required: 7,
             rock_probability: 15,
-            debug_mode: false,
+            debug: false,
         }
     }
 
@@ -24,7 +24,7 @@ impl GameConfig {
             rows: columns_and_rows,
             minimum_moves_required,
             rock_probability,
-            debug_mode: false,
+            debug: false,
         }
     }
     pub fn get_config_from_difficulty(s: &str) -> Self {
@@ -63,7 +63,7 @@ impl GameState {
                 cols: cols + 2,
                 rows: rows + 2,
                 rock_probability,
-                debug_mode,
+                debug: debug_mode,
                 minimum_moves_required,
             },
             levels_solved: 0,

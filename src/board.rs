@@ -174,7 +174,7 @@ impl Board {
         let mut board_count: u32 = 1;
         let mut denominator: u32 = 1;
 
-        if game_config.debug_mode {
+        if game_config.debug {
             time = Some(time_elapsed::start("level generator"));
         } else {
             println!("Generating level...");
@@ -189,10 +189,10 @@ impl Board {
             }
             board = Board::generate_random_board(game_config);
 
-            if game_config.debug_mode {
+            if game_config.debug {
                 if board_count % denominator == 0 {
                     denominator *= 10;
-                    // Unwrap here because if debug_mode is enabled, time is always set.
+                    // Unwrap here because if debug is enabled, time is always set.
                     time.as_mut().unwrap().log_overall(format!(
                         "Boards generated: {:9}",
                         board_count.separate_with_commas()

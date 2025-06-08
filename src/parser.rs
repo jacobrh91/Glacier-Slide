@@ -33,5 +33,5 @@ pub struct Args {
     #[arg(short = 'v', long, default_value_t = false)]
     pub full_level_view: bool,
     #[arg(short, long, default_value_t = false)]
-    pub debug_mode: bool,
+    pub debug: bool,
 }
