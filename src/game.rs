@@ -116,7 +116,7 @@ fn play_board(board: &mut Board) {
         output.push(winning_text);
         output.push(String::from("\n"));
 
-        let (debug_mode, player_gave_up) = game_state_opt
+        let (debug, player_gave_up) = game_state_opt
             .map(|x| {
                 let game_state = x.borrow();
                 (game_state.config.debug, game_state.display_solution)
@@ -126,7 +126,7 @@ fn play_board(board: &mut Board) {
         ///////////////////////////////////////////////////////////////
         // Solution section (either for player-gave-up or debug mode)
         ///////////////////////////////////////////////////////////////
-        if debug_mode || player_gave_up {
+        if debug || player_gave_up {
             let solution_str = borrowed_board
                 .solution
                 .as_ref()
@@ -139,7 +139,7 @@ fn play_board(board: &mut Board) {
         ////////////////////////////
         // Debug mode only section
         ////////////////////////////
-        if debug_mode {
+        if debug {
             let pos = borrowed_board.player.pos;
             let current_position: String = format!("Position: {}, {}", pos.col, pos.row);
             output.push(current_position);

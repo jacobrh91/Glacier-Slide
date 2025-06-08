@@ -55,7 +55,7 @@ impl GameState {
         rock_probability: u8,
         minimum_moves_required: u16,
         player_focused_view: bool,
-        debug_mode: bool,
+        debug: bool,
     ) -> Self {
         GameState {
             config: GameConfig {
@@ -63,7 +63,7 @@ impl GameState {
                 cols: cols + 2,
                 rows: rows + 2,
                 rock_probability,
-                debug: debug_mode,
+                debug,
                 minimum_moves_required,
             },
             levels_solved: 0,
