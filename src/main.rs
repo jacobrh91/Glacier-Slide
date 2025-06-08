@@ -16,9 +16,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Default arguments derived from difficulty parameter
     // (can be overwritten by passing in additional arguments)
-    let config_from_difficulty = cli
-        .difficulty
-        .map(|x| GameConfig::get_config_from_difficulty(x));
+    let config_from_difficulty = cli.difficulty.map(GameConfig::get_config_from_difficulty);
 
     let config = config_from_difficulty.unwrap_or(GameConfig::default());
 

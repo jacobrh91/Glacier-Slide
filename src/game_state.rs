@@ -1,4 +1,4 @@
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct GameConfig {
     pub cols: u8,
     pub rows: u8,

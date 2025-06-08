@@ -1,4 +1,4 @@
-use std::fmt;
+use std::fmt::{self, Display};
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum Direction {
@@ -26,20 +26,21 @@ impl Direction {
         result
     }
 }
-impl ToString for Direction {
-    fn to_string(&self) -> String {
-        match self {
-            Direction::Up => String::from("U"),
-            Direction::Down => String::from("D"),
-            Direction::Left => String::from("L"),
-            Direction::Right => String::from("R"),
-        }
+impl Display for Direction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let char = match self {
+            Direction::Up => 'U',
+            Direction::Down => 'D',
+            Direction::Left => 'L',
+            Direction::Right => 'R',
+        };
+        write!(f, "{}", char)
     }
 }
 
 impl fmt::Debug for Direction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "{}", self)
     }
 }
 
@@ -58,7 +59,7 @@ impl Slide {
 #[derive(Debug, Clone)]
 pub enum Move {
     Reset,
-    MovePlayer(Slide),
+    SlidePlayer(Slide),
     ChangeView,
     ShowSolution,
     Exit,

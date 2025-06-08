@@ -23,28 +23,26 @@ pub fn get_introduction_section() -> Vec<String> {
   Press 'G' or 'g' to give up and show the solution.
   Press 'Q' or 'Ctrl-C' to exit.
 ";
-    let parts: Vec<String> = intro.split("\n").map(|x| String::from(x)).collect();
+    let parts: Vec<String> = intro.split("\n").map(String::from).collect();
     parts
 }
 
 fn play_next_input_handler(play_again_signal: &mut bool) {
     let mut event_handler = |event: crossterm::event::Event| {
-        if let Key(key_event) = event {
-            if let KeyEvent {
-                code,
-                modifiers,
-                kind: KeyEventKind::Press,
-                state: KeyEventState::NONE,
-            } = key_event
-            {
-                match code {
-                    KeyCode::Char(c) if c == 'c' && modifiers == KeyModifiers::CONTROL => {
-                        exit_game();
-                    }
-                    KeyCode::Char('Q') => exit_game(),
-                    KeyCode::Char('\u{0020}') => *play_again_signal = true,
-                    _ => (),
+        if let Key(KeyEvent {
+            code,
+            modifiers,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        }) = event
+        {
+            match code {
+                KeyCode::Char(c) if c == 'c' && modifiers == KeyModifiers::CONTROL => {
+                    exit_game();
                 }
+                KeyCode::Char('Q') => exit_game(),
+                KeyCode::Char('\u{0020}') => *play_again_signal = true,
+                _ => (),
             }
         }
     };
@@ -58,7 +56,7 @@ pub fn start_game(game_state: GameState) {
     let rc_game_state = Rc::new(RefCell::new(game_state));
 
     loop {
-        let mut board = Board::generate_solvable_board(game_config);
+        let mut board = Board::generate_solvable_board(&game_config);
         board.attach_game_state(Rc::clone(&rc_game_state));
 
         play_board(&mut board);

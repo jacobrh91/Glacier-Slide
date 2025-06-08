@@ -13,7 +13,7 @@ impl Solution {
         }
     }
 
-    pub fn get_solution_string(self: &Self) -> Option<String> {
+    pub fn get_solution_string(&self) -> Option<String> {
         self.steps
             .as_ref()
             .map(|x| Direction::to_string(x.to_vec()))

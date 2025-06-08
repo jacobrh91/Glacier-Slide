@@ -15,7 +15,7 @@ use crate::system::{exit_game, respond_to_input};
 pub struct Renderer<RenderFn, InputFn, MoveIterator, GameOver>
 where
     RenderFn: Fn() -> Vec<String>,
-    InputFn: FnMut(KeyCode) -> (),
+    InputFn: FnMut(KeyCode),
     MoveIterator: Iterator,
     GameOver: Fn() -> bool,
 {
@@ -31,7 +31,7 @@ where
 impl<RenderFn, InputFn, MoveIterator, GameOver> Renderer<RenderFn, InputFn, MoveIterator, GameOver>
 where
     RenderFn: Fn() -> Vec<String>,
-    InputFn: FnMut(KeyCode) -> (),
+    InputFn: FnMut(KeyCode),
     MoveIterator: Iterator,
     GameOver: Fn() -> bool,
 {
@@ -53,33 +53,31 @@ where
         }
     }
 
-    fn key_input_handler(self: &mut Self, event: Event) {
-        if let Key(key_event) = event {
-            if let KeyEvent {
-                code,
-                modifiers,
-                kind: KeyEventKind::Press,
-                state: KeyEventState::NONE,
-            } = key_event
-            {
-                match code {
-                    KeyCode::Char(c) if c == 'c' && modifiers == KeyModifiers::CONTROL => {
-                        exit_game();
-                    }
-                    keycode => (self.input_handler)(keycode),
+    fn key_input_handler(&mut self, event: Event) {
+        if let Key(KeyEvent {
+            code,
+            modifiers,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        }) = event
+        {
+            match code {
+                KeyCode::Char(c) if c == 'c' && modifiers == KeyModifiers::CONTROL => {
+                    exit_game();
                 }
+                keycode => (self.input_handler)(keycode),
             }
         }
     }
 
-    fn render_next_frame(self: &mut Self) -> bool {
+    fn render_next_frame(&mut self) -> bool {
         /*
         call move iterator, return true if another frame should be rendered
          */
         self.change_iterator.next().is_some()
     }
 
-    pub fn render_scene(self: &mut Self) {
+    pub fn render_scene(&mut self) {
         enable_raw_mode().unwrap();
 
         while !(self.game_over_function)() {

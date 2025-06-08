@@ -23,19 +23,12 @@ pub fn clear_terminal() {
     disable_raw_mode().unwrap();
 }
 
-pub fn respond_to_input<EventHandler: FnMut(crossterm::event::Event) -> ()>(
-    event_handler: &mut EventHandler,
-) {
+pub fn respond_to_input<F: FnMut(crossterm::event::Event)>(event_handler: &mut F) {
     // Do not delay when polling. It is simply a way to get
     // the input handling logic to not block the thread.
-    match crossterm::event::poll(Duration::from_millis(0)) {
-        Ok(input_found) => {
-            if input_found {
-                crossterm::event::read()
-                    .ok()
-                    .map(|event| event_handler(event));
-            }
+    if let Ok(input_found) = crossterm::event::poll(Duration::from_millis(0)) {
+        if input_found {
+            crossterm::event::read().ok().map(event_handler);
         }
-        Err(_) => (),
-    };
+    }
 }
