@@ -7,8 +7,8 @@ pub struct GameConfig {
     pub debug: bool,
 }
 
-impl GameConfig {
-    pub fn default() -> Self {
+impl Default for GameConfig {
+    fn default() -> Self {
         GameConfig {
             cols: 7,
             rows: 7,
@@ -17,7 +17,9 @@ impl GameConfig {
             debug: false,
         }
     }
+}
 
+impl GameConfig {
     pub fn new(columns_and_rows: u8, minimum_moves_required: u16, rock_probability: u8) -> Self {
         GameConfig {
             cols: columns_and_rows,
@@ -27,7 +29,7 @@ impl GameConfig {
             debug: false,
         }
     }
-    pub fn get_config_from_difficulty(s: &str) -> Self {
+    pub fn get_config_from_difficulty(s: String) -> Self {
         match s.to_lowercase().as_str() {
             "easy" => GameConfig::new(7, 7, 15),
             "medium" => GameConfig::new(12, 11, 15),

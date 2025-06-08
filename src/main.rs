@@ -16,18 +16,22 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Default arguments derived from difficulty parameter
     // (can be overwritten by passing in additional arguments)
-    let config = cli
+    let config_from_difficulty = cli
         .difficulty
-        .map(|x| GameConfig::get_config_from_difficulty(x.as_str()))
-        .unwrap_or_else(|| GameConfig::default());
+        .map(|x| GameConfig::get_config_from_difficulty(x));
+
+    let config = config_from_difficulty.unwrap_or(GameConfig::default());
+
+    let cols = cli.columns.unwrap_or(config.cols);
+    let rows = cli.rows.unwrap_or(config.rows);
+    let rock_probability = cli.rock_percentage.unwrap_or(config.rock_probability);
+    let min_moves = cli.moves_required.unwrap_or(config.minimum_moves_required);
 
     let game_state = GameState::new(
-        cli.columns.unwrap_or_else(|| config.cols),
-        cli.rows.unwrap_or_else(|| config.rows),
-        cli.rock_percentage
-            .unwrap_or_else(|| config.rock_probability),
-        cli.moves_required
-            .unwrap_or_else(|| config.minimum_moves_required),
+        cols,
+        rows,
+        rock_probability,
+        min_moves,
         !cli.full_level_view,
         cli.debug,
     );

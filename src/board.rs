@@ -213,7 +213,7 @@ impl Board {
                         .as_ref()
                         .map(|y| y.len() >= game_config.minimum_moves_required.into())
                 })
-                .unwrap_or_else(|| false);
+                .unwrap_or(false);
             if *solution_found {
                 break;
             }
@@ -261,7 +261,7 @@ impl Board {
             .game_state
             .as_ref()
             .map(|x| x.borrow().player_focused_view)
-            .unwrap_or_else(|| true);
+            .unwrap_or(true);
 
         if player_focused_view {
             self.render_player_focused_board()
@@ -568,6 +568,6 @@ impl Board {
                     vec![Direction::Up, Direction::Down]
                 }
             })
-            .unwrap_or_else(|| Vec::from(Direction::all()))
+            .unwrap_or(Vec::from(Direction::all()))
     }
 }

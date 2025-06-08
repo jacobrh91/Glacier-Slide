@@ -97,7 +97,7 @@ fn play_board(board: &mut Board) {
         /////////////////
         let solved_count: u16 = game_state_opt
             .map(|x| x.borrow().levels_solved)
-            .unwrap_or_else(|| 0);
+            .unwrap_or(0);
         let boards_solved: String = format!("Levels solved: {}", solved_count);
 
         output.push(boards_solved);
@@ -121,7 +121,7 @@ fn play_board(board: &mut Board) {
                 let game_state = x.borrow();
                 (game_state.config.debug, game_state.display_solution)
             })
-            .unwrap_or_else(|| (false, false));
+            .unwrap_or((false, false));
 
         ///////////////////////////////////////////////////////////////
         // Solution section (either for player-gave-up or debug mode)
@@ -131,7 +131,7 @@ fn play_board(board: &mut Board) {
                 .solution
                 .as_ref()
                 .and_then(|x| x.get_solution_string())
-                .unwrap_or_else(|| String::from("Unknown"));
+                .unwrap_or(String::from("Unknown"));
             let solution: String = format!("Solution: {}", solution_str);
             output.push(solution);
         }
@@ -150,7 +150,7 @@ fn play_board(board: &mut Board) {
                 .solution
                 .as_ref()
                 .map(|x| x.edges_traversed.to_string())
-                .unwrap_or_else(|| String::from("Unknown"));
+                .unwrap_or(String::from("Unknown"));
             output.push(format!(
                 "Edges traversed to find solution: {}",
                 edges_traversed
