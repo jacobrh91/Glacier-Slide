@@ -19,7 +19,6 @@ where
     MoveIterator: Iterator,
     GameOver: Fn() -> bool,
 {
-    sout: Stdout,
     render_function: RenderFn,
     input_handler: InputFn,
     change_iterator: MoveIterator,
@@ -43,7 +42,6 @@ where
         frame_delay_millis: u64,
     ) -> Renderer<RenderFn, InputFn, MoveIterator, GameOver> {
         Renderer {
-            sout: stdout(),
             render_function,
             input_handler,
             change_iterator,
@@ -80,6 +78,8 @@ where
     pub fn render_scene(&mut self) {
         enable_raw_mode().unwrap();
 
+        let mut stdout: Stdout = stdout();
+
         while !(self.game_over_function)() {
             let mut event_handler = |event: Event| (self.key_input_handler(event));
             respond_to_input(&mut event_handler);
@@ -88,19 +88,19 @@ where
                 if !self.initial_render {
                     self.initial_render = true;
                 }
-                execute!(self.sout, terminal::Clear(terminal::ClearType::All)).unwrap();
-                queue!(self.sout, cursor::MoveTo(0, 0)).unwrap();
+                execute!(stdout, terminal::Clear(terminal::ClearType::All)).unwrap();
+                queue!(stdout, cursor::MoveTo(0, 0)).unwrap();
                 let scene: Vec<String> = (self.render_function)();
 
                 for (idx, row) in scene.iter().enumerate() {
                     queue!(
-                        self.sout,
+                        stdout,
                         style::Print(row),                 // Print row
                         cursor::MoveTo(0, idx as u16 + 1)  // Move to next row
                     )
                     .unwrap();
                 }
-                self.sout.flush().unwrap();
+                stdout.flush().unwrap();
             }
             thread::sleep(Duration::from_millis(self.frame_delay_millis));
         }
