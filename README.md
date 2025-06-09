@@ -101,4 +101,4 @@ Another pattern to notice is that the optimal solution will never have the playe
 
 ### Larger levels are possible
 
-You may notice in the command-line arguments parser (`src/parser.rs`) that I have capped the dimensions of the puzzle at 20 tiles and the minimum number of moves to solve at 35. This was somewhat arbitrary, and the program can easily generate much larger levels. But I doubt many people would enjoy a 100 by 100 sized puzzle that requires 50 moves to solve. 
+You may notice in the command-line arguments parser (`src/parser.rs`) that I have capped the dimensions of the puzzle at 20 tiles and the minimum number of moves to solve at 35. This was somewhat arbitrary, and the program can easily generate much larger levels. But I doubt many people would enjoy a 100 by 100 puzzle that requires 50 moves to solve. 
