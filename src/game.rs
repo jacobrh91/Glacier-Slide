@@ -4,6 +4,7 @@ use crate::renderer::Renderer;
 use crate::system::{clear_terminal, exit_game, respond_to_input};
 use crossterm::event::KeyModifiers;
 use crossterm::event::{Event::Key, KeyCode, KeyEvent, KeyEventKind, KeyEventState};
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 
 use std::cell::RefCell;
 use std::iter;
@@ -56,7 +57,18 @@ pub fn start_game(game_state: GameState) {
     let rc_game_state = Rc::new(RefCell::new(game_state));
 
     loop {
+        // Disable the raw mode, so that during puzzle generation,
+        // info can be printed to the terminal correctly.
+        clear_terminal();
+        disable_raw_mode().unwrap();
+
+        for i in get_introduction_section() {
+            println!("{}", &i);
+        }
         let mut board = Board::generate_solvable_board(&game_config);
+
+        // Now that you have a board, prepare to play it.
+        enable_raw_mode().unwrap();
         board.attach_game_state(Rc::clone(&rc_game_state));
 
         play_board(&mut board);

@@ -4,12 +4,10 @@ mod solution;
 mod tile;
 
 use crate::{
-    game::get_introduction_section,
     game_state::{GameConfig, GameState},
-    system::{clear_terminal, exit_game},
+    system::exit_game,
 };
 
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use direction::{Direction, Move, Slide};
 use serde::{Serialize, Serializer};
 use solution::Solution;
@@ -107,7 +105,7 @@ impl Board {
     }
 
     pub fn get_layout_json(&self) -> String {
-        serde_json::to_string(&self.layout).expect("Failed to serialize to JSON")
+        serde_json::to_string_pretty(&self.layout).expect("Failed to serialize to JSON")
     }
 
     // Game state is not needed when generating solvable boards, but
@@ -187,38 +185,24 @@ impl Board {
         )
     }
 
-    fn safe_print(game_config: &GameConfig, s: &str) {
-        // If generating the board only, do not print anything to STDOUT.
-        if !game_config.board_only {
-            println!("{}", s)
-        }
-    }
-
     pub fn generate_solvable_board(game_config: &GameConfig) -> Self {
-        if !game_config.board_only {
-            clear_terminal();
-            disable_raw_mode().unwrap();
-        }
-
-        for i in get_introduction_section() {
-            Board::safe_print(game_config, &i)
-        }
-
         let mut time: Option<TimeElapsed> = None;
         let mut board_count: u32 = 1;
         let mut denominator: u32 = 1;
 
         if game_config.debug {
             time = Some(time_elapsed::start("level generator"));
-        } else {
-            Board::safe_print(game_config, "Generating level...");
+        } else if !game_config.board_only {
+            println!("Generating level...");
         }
 
         let mut board: Board;
 
         loop {
             if board_count > 1_000_000 {
-                Board::safe_print(game_config, "Could not find solvable level after 1,000,000 attempts. Adjust board parameters.");
+                if !game_config.board_only {
+                    println!("Could not find solvable level after 1,000,000 attempts. Adjust board parameters.");
+                }
                 exit_game();
             }
             board = Board::generate_random_board(game_config);
@@ -250,7 +234,14 @@ impl Board {
                 break;
             }
         }
-        enable_raw_mode().unwrap();
+
+        if game_config.board_only {
+            // After solving, Replace the player's tile with Start in the layout,
+            // so JSON shows 'S' instead of 'P'
+            let start = board.layout.start.pos;
+            board.layout.grid[start.row][start.col] = Tile::Start;
+        }
+
         board
     }
 

@@ -17,7 +17,6 @@ impl Serialize for Start {
     where
         S: Serializer,
     {
-        // Delegate to Point's serialization: [col, row]
         self.pos.serialize(serializer)
     }
 }
@@ -32,7 +31,6 @@ impl Serialize for End {
     where
         S: Serializer,
     {
-        // Delegate to Point's serialization: [col, row]
         self.pos.serialize(serializer)
     }
 }
@@ -47,7 +45,6 @@ impl Serialize for Rock {
     where
         S: Serializer,
     {
-        // Delegate to Point's serialization: [col, row]
         self.pos.serialize(serializer)
     }
 }
@@ -70,7 +67,7 @@ impl Tile {
             Tile::Start => 'S',
             Tile::End => 'E',
             Tile::Player => 'P',
-            Tile::Ice => 'I',
+            Tile::Ice => ' ', // So when the board is serialized to JSON, there is a gap.
         }
     }
 }
