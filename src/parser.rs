@@ -1,4 +1,4 @@
-use clap::{arg, builder::PossibleValuesParser, command, Parser};
+use clap::{arg, command, Parser};
 use clap_num::number_range;
 
 fn dimension_bounds(s: &str) -> Result<u8, String> {
@@ -13,14 +13,10 @@ fn rock_percentage(s: &str) -> Result<u8, String> {
     number_range(s, 5, 50)
 }
 
-fn difficulty_value_parser() -> PossibleValuesParser {
-    clap::builder::PossibleValuesParser::new(["easy", "medium", "hard", "extreme"])
-}
-
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct Args {
-    #[arg(ignore_case = true, value_parser = difficulty_value_parser())]
+    #[arg(ignore_case = true, value_parser = ["easy", "medium", "hard", "extreme"])]
     pub difficulty: Option<String>,
     #[arg(short, long, value_parser = dimension_bounds)]
     pub columns: Option<u8>,
@@ -30,10 +26,10 @@ pub struct Args {
     pub moves_required: Option<u16>,
     #[arg(short = 'p', long, value_parser = rock_percentage, value_name = "PERCENTAGE")]
     pub rock_percentage: Option<u8>,
-    #[arg(short = 'v', long, default_value_t = false)]
+    #[arg(short = 'v', long)]
     pub full_level_view: bool,
-    #[arg(short, long, default_value_t = false)]
+    #[arg(short, long)]
     pub debug: bool,
-    #[arg(long, default_value_t = false)]
+    #[arg(long)]
     pub board_only: bool,
 }
