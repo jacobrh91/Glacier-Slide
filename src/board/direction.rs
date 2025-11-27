@@ -1,6 +1,6 @@
 use std::fmt::{self, Display};
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Direction {
     Up,
     Down,
@@ -9,38 +9,26 @@ pub enum Direction {
 }
 
 impl Direction {
-    pub fn all() -> [Direction; 4] {
-        [
-            Direction::Up,
-            Direction::Right,
-            Direction::Down,
-            Direction::Left,
-        ]
-    }
+    pub const ALL: [Direction; 4] = [
+        Direction::Up,
+        Direction::Right,
+        Direction::Down,
+        Direction::Left,
+    ];
 
-    pub fn to_string(directions: Vec<Direction>) -> String {
-        let mut result = String::with_capacity(directions.len());
-        for direction in directions {
-            result.push_str(&direction.to_string());
-        }
-        result
-    }
-}
-impl Display for Direction {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let char = match self {
+    pub fn as_char(self) -> char {
+        match self {
             Direction::Up => 'U',
             Direction::Down => 'D',
             Direction::Left => 'L',
             Direction::Right => 'R',
-        };
-        write!(f, "{}", char)
+        }
     }
 }
 
-impl fmt::Debug for Direction {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self)
+impl Display for Direction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.as_char().to_string())
     }
 }
 
@@ -52,7 +40,7 @@ pub struct Slide {
 
 impl Slide {
     pub fn new(steps: u8, direction: Direction) -> Self {
-        Slide { steps, direction }
+        Self { steps, direction }
     }
 }
 

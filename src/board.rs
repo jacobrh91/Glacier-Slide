@@ -596,6 +596,6 @@ impl Board {
                     vec![Direction::Up, Direction::Down]
                 }
             })
-            .unwrap_or(Vec::from(Direction::all()))
+            .unwrap_or(Vec::from(Direction::ALL))
     }
 }
