@@ -90,12 +90,12 @@ impl Board {
             layout: BoardLayout {
                 rows,
                 cols,
-                start: Start { pos: start },
-                end: End { pos: end },
-                rocks: rocks.iter().map(|r| Rock { pos: *r }).collect(),
+                start: Start(start),
+                end: End(end),
+                rocks: rocks.iter().map(|r| Rock(*r)).collect(),
                 grid,
             },
-            player: Player { pos: start },
+            player: Player(start),
             move_queue: VecDeque::new(),
             player_has_won: false,
             bot_is_solving: false,
@@ -238,7 +238,7 @@ impl Board {
         if game_config.board_only {
             // After solving, Replace the player's tile with Start in the layout,
             // so JSON shows 'S' instead of 'P'
-            let start = board.layout.start.pos;
+            let start: Point = board.layout.start.0;
             board.layout.grid[start.row][start.col] = Tile::Start;
         }
 
@@ -295,10 +295,10 @@ impl Board {
         let depth = 4;
 
         let mut result = Vec::new();
-        let c_left = self.player.pos.col as isize - depth;
-        let c_right = self.player.pos.col as isize + depth;
-        let r_top = self.player.pos.row as isize - depth;
-        let r_bottom = self.player.pos.row as isize + depth;
+        let c_left = self.player.0.col as isize - depth;
+        let c_right = self.player.0.col as isize + depth;
+        let r_top = self.player.0.row as isize - depth;
+        let r_bottom = self.player.0.row as isize + depth;
 
         for r in r_top..=r_bottom {
             let mut row_str = String::from("");
@@ -311,7 +311,7 @@ impl Board {
                     // Deriving the border noise from a hash of the rock data is deterministic, but unpredictable.
                     // If it were simply random, the border rocks would change completely every frame.
                     let rock_positions: Vec<Point> =
-                        self.layout.rocks.iter().map(|r| r.pos).collect();
+                        self.layout.rocks.iter().map(|r| r.0).collect();
                     let v = Board::calculate_hash(&((c, r), rock_positions));
 
                     if v % 10 < 8 {
@@ -368,7 +368,7 @@ impl Board {
     }
 
     fn steps_in_direction(&self, direction: &Direction) -> u8 {
-        let mut curr_pos = self.player.pos;
+        let mut curr_pos = self.player.0;
         let mut steps: u8 = 0;
         let mut stop = false;
         match direction {
@@ -421,12 +421,12 @@ impl Board {
     }
 
     fn update_player_position(&mut self, new_row: usize, new_col: usize) {
-        if self.player.pos.row != new_row || self.player.pos.col != new_col {
+        if self.player.0.row != new_row || self.player.0.col != new_col {
             // Cloning because this after moving the player, we need to know how to restore the previous tile.
-            let prev_pos = self.player.pos;
+            let prev_pos = self.player.0;
 
-            self.player.pos.row = new_row;
-            self.player.pos.col = new_col;
+            self.player.0.row = new_row;
+            self.player.0.col = new_col;
             self.layout.grid[new_row][new_col] = Tile::Player;
 
             if self.player_won() && !self.bot_is_solving {
@@ -437,9 +437,9 @@ impl Board {
             }
 
             // Clean up the position where the player used to be.
-            if prev_pos == self.layout.start.pos {
+            if prev_pos == self.layout.start.0 {
                 self.layout.grid[prev_pos.row][prev_pos.col] = Tile::Start;
-            } else if prev_pos == self.layout.end.pos {
+            } else if prev_pos == self.layout.end.0 {
                 self.layout.grid[prev_pos.row][prev_pos.col] = Tile::End;
             } else {
                 self.layout.grid[prev_pos.row][prev_pos.col] = Tile::Ice;
@@ -477,7 +477,7 @@ impl Board {
             if let Some(r#move) = move_opt {
                 if let Move::Reset = r#move {
                     self.move_queue.clear();
-                    if self.player.pos != self.layout.start.pos {
+                    if self.player.0 != self.layout.start.0 {
                         // Only queue the reset move if the player is not in the start position.
                         self.move_queue.push_back(r#move);
                     }
@@ -490,16 +490,16 @@ impl Board {
 
     pub fn move_player(&mut self, dir: Direction) {
         let (new_row, new_col) = match dir {
-            Direction::Up => (self.player.pos.row - 1, self.player.pos.col),
-            Direction::Down => (self.player.pos.row + 1, self.player.pos.col),
-            Direction::Left => (self.player.pos.row, self.player.pos.col - 1),
-            Direction::Right => (self.player.pos.row, self.player.pos.col + 1),
+            Direction::Up => (self.player.0.row - 1, self.player.0.col),
+            Direction::Down => (self.player.0.row + 1, self.player.0.col),
+            Direction::Left => (self.player.0.row, self.player.0.col - 1),
+            Direction::Right => (self.player.0.row, self.player.0.col + 1),
         };
         self.update_player_position(new_row, new_col)
     }
 
     pub fn player_won(&self) -> bool {
-        self.player.pos == self.layout.end.pos
+        self.player.0 == self.layout.end.0
     }
 
     pub fn process_move(&mut self) -> Option<()> {
@@ -518,8 +518,9 @@ impl Board {
                     }
                     self.move_player(slide.direction)
                 }
-                Move::Reset => self
-                    .update_player_position(self.layout.start.pos.row, self.layout.start.pos.col),
+                Move::Reset => {
+                    self.update_player_position(self.layout.start.0.row, self.layout.start.0.col)
+                }
                 Move::ShowSolution => {
                     if let Some(game_state) = &self.game_state {
                         let mut game_state_ref = game_state.borrow_mut();
@@ -547,11 +548,11 @@ impl Board {
 
         // Breadth-first search guarantees the first solution we find is the shortest (if there is a solution).
         let mut bfs_queue = VecDeque::new();
-        bfs_queue.push_back((Vec::<Direction>::new(), self.layout.start.pos));
+        bfs_queue.push_back((Vec::<Direction>::new(), self.layout.start.0));
 
         while !bfs_queue.is_empty() {
             let (parent_prev, parent_pos) = bfs_queue.pop_front().unwrap();
-            if parent_pos == self.layout.end.pos {
+            if parent_pos == self.layout.end.0 {
                 solution.steps = Some(parent_prev);
                 break;
             } else if parent_prev.len() > max_depth.into() {
@@ -571,14 +572,14 @@ impl Board {
                         for _ in 0..steps {
                             self.move_player(direction);
                         }
-                        let child_position = self.player.pos;
+                        let child_position = self.player.0;
                         bfs_queue.push_back((child_moves, child_position));
                     }
                 }
             }
         }
         // After solving (or giving up due to the search depth), return the player to the start
-        self.update_player_position(self.layout.start.pos.row, self.layout.start.pos.col);
+        self.update_player_position(self.layout.start.0.row, self.layout.start.0.col);
         self.bot_is_solving = false;
         self.player_has_won = false;
 

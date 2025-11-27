@@ -1,53 +1,18 @@
-use serde::{Serialize, Serializer};
+use serde::Serialize;
 
 use super::point::Point;
 
 #[derive(Debug, Clone, Serialize)]
-pub struct Player {
-    pub pos: Point,
-}
+pub struct Player(pub Point);
 
-#[derive(Debug, Clone)]
-pub struct Start {
-    pub pos: Point,
-}
+#[derive(Debug, Clone, Serialize)]
+pub struct Start(pub Point);
 
-impl Serialize for Start {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        self.pos.serialize(serializer)
-    }
-}
+#[derive(Debug, Clone, Serialize)]
+pub struct End(pub Point);
 
-#[derive(Debug, Clone)]
-pub struct End {
-    pub pos: Point,
-}
-
-impl Serialize for End {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        self.pos.serialize(serializer)
-    }
-}
-
-#[derive(Debug)]
-pub struct Rock {
-    pub pos: Point,
-}
-
-impl Serialize for Rock {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        self.pos.serialize(serializer)
-    }
-}
+#[derive(Debug, Serialize)]
+pub struct Rock(pub Point);
 
 #[derive(Debug, Clone)]
 pub enum Tile {

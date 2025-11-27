@@ -150,7 +150,7 @@ fn play_board(board: &mut Board) {
         // Debug mode only section
         ////////////////////////////
         if debug {
-            let pos = borrowed_board.player.pos;
+            let pos = borrowed_board.player.0;
             let current_position: String = format!("Position: {}, {}", pos.col, pos.row);
             output.push(current_position);
             let move_queue: String =
