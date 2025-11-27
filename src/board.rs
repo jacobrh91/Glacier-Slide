@@ -202,12 +202,15 @@ impl Board {
 
             if game_config.debug && board_count % denominator == 0 {
                 denominator *= 10;
-                // Unwrap here because if debug is enabled, time is always set.
-                time.as_mut().unwrap().log_overall(format!(
-                    "Boards generated: {:9}",
-                    board_count.separate_with_commas()
-                ));
+
+                if let Some(t) = time.as_mut() {
+                    t.log_overall(format!(
+                        "Boards generated: {:9}",
+                        board_count.separate_with_commas()
+                    ));
+                }
             }
+
             board_count += 1;
 
             let max_depth = game_config.minimum_moves_required + 2;
