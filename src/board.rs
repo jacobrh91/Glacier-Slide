@@ -187,11 +187,21 @@ impl Board {
         )
     }
 
+    fn safe_print(game_config: &GameConfig, s: &str) {
+        // If generating the board only, do not print anything to STDOUT.
+        if !game_config.board_only {
+            println!("{}", s)
+        }
+    }
+
     pub fn generate_solvable_board(game_config: &GameConfig) -> Self {
-        clear_terminal();
-        disable_raw_mode().unwrap();
+        if !game_config.board_only {
+            clear_terminal();
+            disable_raw_mode().unwrap();
+        }
+
         for i in get_introduction_section() {
-            println!("{}", i);
+            Board::safe_print(game_config, &i)
         }
 
         let mut time: Option<TimeElapsed> = None;
@@ -201,14 +211,14 @@ impl Board {
         if game_config.debug {
             time = Some(time_elapsed::start("level generator"));
         } else {
-            println!("Generating level...");
+            Board::safe_print(game_config, "Generating level...");
         }
 
         let mut board: Board;
 
         loop {
             if board_count > 1_000_000 {
-                println!("Could not find solvable level after 1,000,000 attempts. Adjust board parameters.");
+                Board::safe_print(game_config, "Could not find solvable level after 1,000,000 attempts. Adjust board parameters.");
                 exit_game();
             }
             board = Board::generate_random_board(game_config);

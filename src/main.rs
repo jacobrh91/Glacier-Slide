@@ -32,6 +32,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         min_moves,
         !cli.full_level_view,
         cli.debug,
+        cli.board_only,
     );
 
     // If this program is only being called to generate a board

@@ -1,0 +1,1 @@
+{"rows":9,"cols":9,"start":[3,0],"end":[7,0],"rocks":[[1,4],[4,1],[4,3],[4,4],[5,3],[6,2],[7,5]],"grid":["WWWPWWWEW","WIIIRIIIW","WIIIIIRIW","WIIIRRIIW","WRIIRIIIW","WIIIIIIRW","WIIIIIIIW","WIIIIIIIW","WWWWWWWWW"]}
