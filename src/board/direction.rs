@@ -1,6 +1,6 @@
-use std::fmt::{self, Display};
+use std::fmt::{self, Debug, Display};
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Direction {
     Up,
     Down,
@@ -32,6 +32,12 @@ impl Display for Direction {
     }
 }
 
+impl Debug for Direction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Slide {
     pub steps: u8,
@@ -40,7 +46,7 @@ pub struct Slide {
 
 impl Slide {
     pub fn new(steps: u8, direction: Direction) -> Self {
-        Self { steps, direction }
+        Slide { steps, direction }
     }
 }
 
@@ -48,7 +54,4 @@ impl Slide {
 pub enum Move {
     Reset,
     SlidePlayer(Slide),
-    ChangeView,
-    ShowSolution,
-    Exit,
 }

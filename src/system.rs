@@ -1,7 +1,7 @@
 use std::io::{self, stdout, Write};
 
 use crossterm::{
-    cursor::{MoveTo, Show},
+    cursor::MoveTo,
     event::{poll, read, Event},
     execute,
     terminal::{disable_raw_mode, Clear, ClearType},
@@ -21,8 +21,6 @@ pub fn clear_terminal() -> io::Result<()> {
 pub fn exit_game() -> ! {
     // Best-effort to restore terminal. Ignore errors because we're exiting anyway.
     let _ = disable_raw_mode();
-    let _ = execute!(stdout(), Show, Clear(ClearType::All), MoveTo(0, 0));
-
     process::exit(130);
 }
 

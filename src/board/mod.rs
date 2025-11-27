@@ -1,28 +1,25 @@
-mod direction;
-mod point;
-mod solution;
-mod tile;
+pub mod direction;
+pub mod point;
+pub mod solution;
+pub mod tile;
 
-use crate::{
-    game_state::{GameConfig, GameState},
-    system::exit_game,
-};
+pub use direction::{Direction, Move, Slide};
+pub use point::Point;
+pub use solution::Solution;
+pub use tile::{End, Player, Rock, Start, Tile};
+
+use crate::game_state::GameConfig;
+use crate::system::exit_game;
 
 use crossterm::event::KeyCode;
-use direction::{Direction, Move, Slide};
-use point::Point;
 use rand::Rng;
 use serde::{Serialize, Serializer};
-use solution::Solution;
 use thousands::Separable;
-use tile::{End, Player, Rock, Start, Tile};
 use time_elapsed::{self, TimeElapsed};
 
 use std::{
-    cell::RefCell,
     collections::{HashSet, VecDeque},
     hash::{DefaultHasher, Hash, Hasher},
-    rc::Rc,
 };
 
 fn grid_as_strings<S>(grid: &[Vec<Tile>], serializer: S) -> Result<S::Ok, S::Error>
@@ -44,9 +41,8 @@ pub struct BoardLayout {
     start: Start,
     end: End,
     rocks: Vec<Rock>,
-    // Including the grid is actually redundant (because the same info can be
-    // derived in the other fields), but it provides a clean, human-readable
-    // layout of what the level looks like.
+    // Including the grid is redundant (it can be derived from other fields),
+    // but it provides a clean, human-readable layout of the level.
     #[serde(serialize_with = "grid_as_strings")]
     grid: Vec<Vec<Tile>>,
 }
@@ -59,7 +55,6 @@ pub struct Board {
     pub player_has_won: bool,
     bot_is_solving: bool,
     pub solution: Option<Solution>,
-    pub game_state: Option<Rc<RefCell<GameState>>>,
 }
 
 impl Board {
@@ -67,18 +62,17 @@ impl Board {
         let mut grid = vec![vec![Tile::Ice; cols]; rows];
 
         #[allow(clippy::needless_range_loop)]
-        for r in 0..rows {
-            for c in 0..cols {
-                // if first or last row or first or last column
-                if r == 0 || r == rows - 1 || c == 0 || c == cols - 1 {
-                    grid[r][c] = Tile::Wall;
+        for row in 0..rows {
+            for col in 0..cols {
+                if row == 0 || row == rows - 1 || col == 0 || col == cols - 1 {
+                    grid[row][col] = Tile::Wall;
                 } else {
-                    grid[r][c] = Tile::Ice;
+                    grid[row][col] = Tile::Ice;
                 }
             }
         }
 
-        // Set player (always at start during initialization) and end positions.
+        // Set player (at start during initialization) and end positions.
         grid[start.row][start.col] = Tile::Player;
         grid[end.row][end.col] = Tile::End;
 
@@ -93,7 +87,7 @@ impl Board {
                 cols,
                 start: Start(start),
                 end: End(end),
-                rocks: rocks.iter().map(|r| Rock(*r)).collect(),
+                rocks: rocks.iter().copied().map(Rock).collect(),
                 grid,
             },
             player: Player(start),
@@ -101,7 +95,6 @@ impl Board {
             player_has_won: false,
             bot_is_solving: false,
             solution: None,
-            game_state: None,
         }
     }
 
@@ -109,34 +102,24 @@ impl Board {
         serde_json::to_string_pretty(&self.layout).expect("Failed to serialize to JSON")
     }
 
-    // Game state is not needed when generating solvable boards, but
-    //   is needed when the level is being played.
-    pub fn attach_game_state(&mut self, game_state: Rc<RefCell<GameState>>) {
-        self.game_state = Some(game_state);
-    }
-
     fn get_random_start_and_end(cols: usize, rows: usize) -> (Point, Point) {
         assert!(cols >= 3 && rows >= 3);
+
         let total_possible = (2 * (cols - 2)) + (2 * (rows - 2));
         let mut possible_values = Vec::with_capacity(total_possible);
 
-        // Get top and bottom borders (not including the corner)
+        // Top and bottom borders (excluding corners)
         let max_col = cols - 1;
-        for c in 0..max_col {
-            possible_values.push(Point { col: c, row: 0 });
-            possible_values.push(Point {
-                col: c,
-                row: rows - 1,
-            });
+        for col in 0..max_col {
+            possible_values.push(Point { col, row: 0 });
+            possible_values.push(Point { col, row: rows - 1 });
         }
-        // Get left and right borders (not including the corner)
+
+        // Left and right borders (excluding corners)
         let max_row = rows - 1;
-        for r in 0..max_row {
-            possible_values.push(Point { col: 0, row: r });
-            possible_values.push(Point {
-                col: cols - 1,
-                row: r,
-            });
+        for row in 0..max_row {
+            possible_values.push(Point { col: 0, row });
+            possible_values.push(Point { col: cols - 1, row });
         }
 
         let mut rng = rand::rng();
@@ -273,13 +256,7 @@ impl Board {
         s.finish()
     }
 
-    pub fn render_board(&self) -> Vec<String> {
-        let player_focused_view = self
-            .game_state
-            .as_ref()
-            .map(|x| x.borrow().player_focused_view)
-            .unwrap_or(true);
-
+    pub fn render_board(&self, player_focused_view: bool) -> Vec<String> {
         if player_focused_view {
             self.render_player_focused_board()
         } else {
@@ -366,6 +343,7 @@ impl Board {
             }
             result.push(row_str);
         }
+
         result
     }
 
@@ -393,7 +371,7 @@ impl Board {
                 break;
             }
 
-            // Check whether a wall or rock should block the players movement
+            // Check whether a wall or rock should block the player's movement
             match self.layout.grid[next_row as usize][next_col as usize] {
                 Tile::Wall | Tile::Rock => break,
                 _ => {
@@ -418,12 +396,9 @@ impl Board {
 
             if self.player_won() && !self.bot_is_solving {
                 self.player_has_won = true;
-                if let Some(game_state_ref) = self.game_state.as_mut() {
-                    game_state_ref.borrow_mut().levels_solved += 1;
-                }
             }
 
-            // Clean up the position where the player used to be.
+            // Restore the tile where the player used to be.
             if prev_pos == self.layout.start.0 {
                 self.layout.grid[prev_pos.row][prev_pos.col] = Tile::Start;
             } else if prev_pos == self.layout.end.0 {
@@ -455,21 +430,19 @@ impl Board {
                 KeyCode::Char('s') | KeyCode::Down => self.create_slide_move(&Direction::Down),
                 KeyCode::Char('a') | KeyCode::Left => self.create_slide_move(&Direction::Left),
                 KeyCode::Char('d') | KeyCode::Right => self.create_slide_move(&Direction::Right),
-                KeyCode::Char('v') | KeyCode::Char('V') => Some(Move::ChangeView),
-                KeyCode::Char('g') | KeyCode::Char('G') => Some(Move::ShowSolution),
-                KeyCode::Char('Q') => Some(Move::Exit),
-                KeyCode::Char('\u{0020}') => Some(Move::Reset),
+                KeyCode::Char(' ') => Some(Move::Reset),
                 _ => None,
             };
-            if let Some(r#move) = move_opt {
-                if let Move::Reset = r#move {
+
+            if let Some(mv) = move_opt {
+                if let Move::Reset = mv {
                     self.move_queue.clear();
                     if self.player.0 != self.layout.start.0 {
-                        // Only queue the reset move if the player is not in the start position.
-                        self.move_queue.push_back(r#move);
+                        // Only queue reset if the player is not already at the start.
+                        self.move_queue.push_back(mv);
                     }
                 } else {
-                    self.move_queue.push_back(r#move);
+                    self.move_queue.push_back(mv);
                 }
             }
         }
@@ -508,19 +481,6 @@ impl Board {
                 Move::Reset => {
                     self.update_player_position(self.layout.start.0.row, self.layout.start.0.col)
                 }
-                Move::ShowSolution => {
-                    if let Some(game_state) = &self.game_state {
-                        let mut game_state_ref = game_state.borrow_mut();
-                        game_state_ref.display_solution = true;
-                    }
-                }
-                Move::ChangeView => {
-                    if let Some(game_state) = &self.game_state {
-                        let mut game_state_ref = game_state.borrow_mut();
-                        game_state_ref.player_focused_view = !game_state_ref.player_focused_view;
-                    }
-                }
-                Move::Exit => exit_game(),
             })
     }
 
