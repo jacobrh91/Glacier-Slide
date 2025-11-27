@@ -281,74 +281,82 @@ impl Board {
         }
     }
 
+    fn render_tile_at(&self, col: isize, row: isize, inside_bounds: bool) -> String {
+        if !inside_bounds {
+            // Deriving the border noise from a hash of the rock data is deterministic, but unpredictable.
+            let rock_positions: Vec<Point> = self.layout.rocks.iter().map(|r| r.0).collect();
+            let v = Board::calculate_hash(&((col, row), rock_positions));
+            return if v % 10 < 8 {
+                String::from("██")
+            } else {
+                String::from("  ")
+            };
+        }
+
+        let col_usize = col as usize;
+        let row_usize = row as usize;
+
+        match self.layout.grid[row_usize][col_usize] {
+            Tile::Wall | Tile::Rock => String::from("██"),
+            Tile::Player => String::from("🟥"),
+            Tile::Ice => String::from("  "),
+            Tile::Start => self.create_arrows(
+                true,
+                Point {
+                    col: col_usize,
+                    row: row_usize,
+                },
+            ),
+            Tile::End => self.create_arrows(
+                false,
+                Point {
+                    col: col_usize,
+                    row: row_usize,
+                },
+            ),
+        }
+    }
+
     fn render_player_focused_board(&self) -> Vec<String> {
         let depth = 4;
-
         let mut result = Vec::new();
-        let c_left = self.player.0.col as isize - depth;
-        let c_right = self.player.0.col as isize + depth;
-        let r_top = self.player.0.row as isize - depth;
-        let r_bottom = self.player.0.row as isize + depth;
 
-        for r in r_top..=r_bottom {
+        let col_center = self.player.0.col as isize;
+        let row_center = self.player.0.row as isize;
+
+        let col_min = col_center - depth;
+        let col_max = col_center + depth;
+        let row_min = row_center - depth;
+        let row_max = row_center + depth;
+
+        for row in row_min..=row_max {
             let mut row_str = String::new();
-            for c in c_left..=c_right {
-                if c < 0
-                    || c as usize >= self.layout.cols
-                    || r < 0
-                    || r as usize >= self.layout.rows
-                {
-                    // Deriving the border noise from a hash of the rock data is deterministic, but unpredictable.
-                    let rock_positions: Vec<Point> =
-                        self.layout.rocks.iter().map(|r| r.0).collect();
-                    let v = Board::calculate_hash(&((c, r), rock_positions));
+            for col in col_min..=col_max {
+                let inside_bounds = col >= 0
+                    && row >= 0
+                    && (col as usize) < self.layout.cols
+                    && (row as usize) < self.layout.rows;
 
-                    if v % 10 < 8 {
-                        row_str.push_str("██");
-                    } else {
-                        row_str.push_str("  ");
-                    }
-                } else {
-                    let tile_str = match self.layout.grid[r as usize][c as usize] {
-                        Tile::Wall | Tile::Rock => String::from("██"),
-                        Tile::Start => self.create_arrows(
-                            true,
-                            Point {
-                                col: c as usize,
-                                row: r as usize,
-                            },
-                        ),
-                        Tile::End => self.create_arrows(
-                            false,
-                            Point {
-                                col: c as usize,
-                                row: r as usize,
-                            },
-                        ),
-                        Tile::Player => String::from("🟥"),
-                        Tile::Ice => String::from("  "),
-                    };
-                    row_str.push_str(&tile_str);
-                }
+                row_str.push_str(&self.render_tile_at(col, row, inside_bounds));
             }
             result.push(row_str);
         }
+
         result
     }
 
     fn render_full_board(&self) -> Vec<String> {
         let mut result = Vec::new();
-        for r in 0..self.layout.rows {
+
+        for row in 0..self.layout.rows {
             let mut row_str = String::new();
-            for c in 0..self.layout.cols {
-                let tile_str = match self.layout.grid[r][c] {
-                    Tile::Wall | Tile::Rock => String::from("██"),
-                    Tile::Start => self.create_arrows(true, Point { col: c, row: r }),
-                    Tile::End => self.create_arrows(false, Point { col: c, row: r }),
-                    Tile::Player => String::from("🟥"),
-                    Tile::Ice => String::from("  "),
-                };
-                row_str.push_str(&tile_str);
+
+            for col in 0..self.layout.cols {
+                row_str.push_str(&self.render_tile_at(
+                    col as isize,
+                    row as isize,
+                    true, // always inside bounds in full-board mode
+                ));
             }
             result.push(row_str);
         }
