@@ -9,7 +9,7 @@ use crossterm::{
 
 use std::process;
 
-/// Clear the current screen buffer and move the cursor to (0, 0).
+// Clear the current screen buffer and move the cursor to (0, 0).
 pub fn clear_terminal() -> io::Result<()> {
     let mut out = stdout();
     execute!(out, Clear(ClearType::All), MoveTo(0, 0))?;
@@ -17,7 +17,6 @@ pub fn clear_terminal() -> io::Result<()> {
     Ok(())
 }
 
-// Best-effort terminal restore, then exit the process.
 // This function never returns.
 pub fn exit_game() -> ! {
     // Best-effort to restore terminal. Ignore errors because we're exiting anyway.
