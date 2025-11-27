@@ -8,16 +8,15 @@ use crate::{
     system::exit_game,
 };
 
-use direction::{Direction, Move, Slide};
-use serde::{Serialize, Serializer};
-use solution::Solution;
-use time_elapsed::{self, TimeElapsed};
-
 use crossterm::event::KeyCode;
+use direction::{Direction, Move, Slide};
 use point::Point;
 use rand::Rng;
-
+use serde::{Serialize, Serializer};
+use solution::Solution;
 use thousands::Separable;
+use tile::{End, Player, Rock, Start, Tile};
+use time_elapsed::{self, TimeElapsed};
 
 use std::{
     cell::RefCell,
@@ -25,13 +24,11 @@ use std::{
     hash::{DefaultHasher, Hash, Hasher},
     rc::Rc,
 };
-use tile::{End, Player, Rock, Start, Tile};
 
 fn grid_as_strings<S>(grid: &[Vec<Tile>], serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
-    // Convert the grid to a Vec<String>
     let rows: Vec<String> = grid
         .iter()
         .map(|row| row.iter().map(Tile::as_char).collect())
@@ -77,6 +74,7 @@ impl Board {
                 }
             }
         }
+
         // Set player (always at start during initialization) and end positions.
         grid[start.row][start.col] = Tile::Player;
         grid[end.row][end.col] = Tile::End;
@@ -137,6 +135,7 @@ impl Board {
                 row: r,
             });
         }
+
         let mut rng = rand::rng();
 
         let start_idx = rng.random_range(0..total_possible);
@@ -144,12 +143,13 @@ impl Board {
         while start_idx == end_idx {
             end_idx = rng.random_range(0..total_possible);
         }
+
         (possible_values[start_idx], possible_values[end_idx])
     }
 
     fn generate_rock(col: usize, row: usize, percent_probability: u8) -> Option<Point> {
         let mut rng = rand::rng();
-        let value = rng.random_range(1..101);
+        let value = rng.random_range(1..=100);
 
         if value <= percent_probability {
             Some(Point { col, row })
@@ -160,29 +160,22 @@ impl Board {
 
     fn generate_random_board(game_config: &GameConfig) -> Self {
         assert!(game_config.cols >= 3 && game_config.rows >= 3);
-        let (start, end) =
-            Board::get_random_start_and_end(game_config.cols as usize, game_config.rows as usize);
+
+        let cols = game_config.cols as usize;
+        let rows = game_config.rows as usize;
+
+        let (start, end) = Board::get_random_start_and_end(cols, rows);
 
         let mut rocks = Vec::new();
-        let col_right_bound = game_config.cols - 2;
-        let row_bottom_bound = game_config.rows - 2;
-        for c in 1..=col_right_bound {
-            for r in 1..=row_bottom_bound {
-                if let Some(r) =
-                    Board::generate_rock(c as usize, r as usize, game_config.rock_probability)
-                {
+        for col in 1..cols - 1 {
+            for row in 1..rows - 1 {
+                if let Some(r) = Board::generate_rock(col, row, game_config.rock_probability) {
                     rocks.push(r);
                 }
             }
         }
 
-        Board::new(
-            game_config.rows as usize,
-            game_config.cols as usize,
-            start,
-            end,
-            rocks,
-        )
+        Board::new(rows, cols, start, end, rocks)
     }
 
     pub fn generate_solvable_board(game_config: &GameConfig) -> Self {
@@ -196,7 +189,7 @@ impl Board {
             println!("Generating level...");
         }
 
-        let mut board: Board;
+        let mut board;
 
         loop {
             if board_count > 1_000_000 {
@@ -218,26 +211,23 @@ impl Board {
             board_count += 1;
 
             let max_depth = game_config.minimum_moves_required + 2;
-
             board.solve(max_depth);
 
-            let solution_found = &board
+            let solution_found = board
                 .solution
                 .as_ref()
-                .and_then(|x| {
-                    x.steps
-                        .as_ref()
-                        .map(|y| y.len() >= game_config.minimum_moves_required.into())
-                })
+                .and_then(|s| s.steps.as_ref())
+                .map(|steps| steps.len() >= game_config.minimum_moves_required as usize)
                 .unwrap_or(false);
-            if *solution_found {
+
+            if solution_found {
                 break;
             }
         }
 
         if game_config.board_only {
-            // After solving, Replace the player's tile with Start in the layout,
-            // so JSON shows 'S' instead of 'P'
+            // After solving, replace the player's tile with Start in the layout,
+            // so JSON shows 'S' instead of 'P' in level layout.
             let start: Point = board.layout.start.0;
             board.layout.grid[start.row][start.col] = Tile::Start;
         }
@@ -301,7 +291,7 @@ impl Board {
         let r_bottom = self.player.0.row as isize + depth;
 
         for r in r_top..=r_bottom {
-            let mut row_str = String::from("");
+            let mut row_str = String::new();
             for c in c_left..=c_right {
                 if c < 0
                     || c as usize >= self.layout.cols
@@ -309,7 +299,6 @@ impl Board {
                     || r as usize >= self.layout.rows
                 {
                     // Deriving the border noise from a hash of the rock data is deterministic, but unpredictable.
-                    // If it were simply random, the border rocks would change completely every frame.
                     let rock_positions: Vec<Point> =
                         self.layout.rocks.iter().map(|r| r.0).collect();
                     let v = Board::calculate_hash(&((c, r), rock_positions));
@@ -350,11 +339,10 @@ impl Board {
     fn render_full_board(&self) -> Vec<String> {
         let mut result = Vec::new();
         for r in 0..self.layout.rows {
-            let mut row_str = String::from("");
+            let mut row_str = String::new();
             for c in 0..self.layout.cols {
                 let tile_str = match self.layout.grid[r][c] {
-                    Tile::Wall => String::from("██"),
-                    Tile::Rock => String::from("██"),
+                    Tile::Wall | Tile::Rock => String::from("██"),
                     Tile::Start => self.create_arrows(true, Point { col: c, row: r }),
                     Tile::End => self.create_arrows(false, Point { col: c, row: r }),
                     Tile::Player => String::from("🟥"),
@@ -368,61 +356,46 @@ impl Board {
     }
 
     fn steps_in_direction(&self, direction: &Direction) -> u8 {
-        let mut curr_pos = self.player.0;
+        let (col_change, row_change): (isize, isize) = match direction {
+            Direction::Up => (0, -1),
+            Direction::Down => (0, 1),
+            Direction::Left => (-1, 0),
+            Direction::Right => (1, 0),
+        };
+
+        let mut current_position = self.player.0;
         let mut steps: u8 = 0;
-        let mut stop = false;
-        match direction {
-            Direction::Up => {
-                while !stop && curr_pos.row != 0 {
-                    match self.layout.grid[curr_pos.row - 1][curr_pos.col] {
-                        Tile::Wall | Tile::Rock => stop = true,
-                        _ => {
-                            curr_pos.row -= 1;
-                            steps += 1;
-                        }
-                    }
-                }
+
+        loop {
+            let next_col = current_position.col as isize + col_change;
+            let next_row = current_position.row as isize + row_change;
+
+            // Check level bounds
+            if next_col < 0
+                || next_row < 0
+                || next_col as usize >= self.layout.cols
+                || next_row as usize >= self.layout.rows
+            {
+                break;
             }
-            Direction::Down => {
-                while !stop && curr_pos.row != self.layout.rows - 1 {
-                    match self.layout.grid[curr_pos.row + 1][curr_pos.col] {
-                        Tile::Wall | Tile::Rock => stop = true,
-                        _ => {
-                            curr_pos.row += 1;
-                            steps += 1;
-                        }
-                    }
-                }
-            }
-            Direction::Left => {
-                while !stop && curr_pos.col != 0 {
-                    match self.layout.grid[curr_pos.row][curr_pos.col - 1] {
-                        Tile::Wall | Tile::Rock => stop = true,
-                        _ => {
-                            curr_pos.col -= 1;
-                            steps += 1;
-                        }
-                    }
-                }
-            }
-            Direction::Right => {
-                while !stop && curr_pos.col != self.layout.cols - 1 {
-                    match self.layout.grid[curr_pos.row][curr_pos.col + 1] {
-                        Tile::Wall | Tile::Rock => stop = true,
-                        _ => {
-                            curr_pos.col += 1;
-                            steps += 1;
-                        }
-                    }
+
+            // Check whether a wall or rock should block the players movement
+            match self.layout.grid[next_row as usize][next_col as usize] {
+                Tile::Wall | Tile::Rock => break,
+                _ => {
+                    current_position.col = next_col as usize;
+                    current_position.row = next_row as usize;
+                    steps += 1;
                 }
             }
         }
+
         steps
     }
 
     fn update_player_position(&mut self, new_row: usize, new_col: usize) {
         if self.player.0.row != new_row || self.player.0.col != new_col {
-            // Cloning because this after moving the player, we need to know how to restore the previous tile.
+            // Cloning because after moving the player, we need to know how to restore the previous tile.
             let prev_pos = self.player.0;
 
             self.player.0.row = new_row;
@@ -539,10 +512,7 @@ impl Board {
 
     fn solve(&mut self, max_depth: u16) {
         let mut visited = HashSet::<Point>::new();
-
         let mut solution = Solution::new();
-        // let mut edges_traversed: u32 = 0;
-        // let mut solution: Option<Vec<Direction>> = None;
 
         self.bot_is_solving = true;
 
@@ -550,12 +520,11 @@ impl Board {
         let mut bfs_queue = VecDeque::new();
         bfs_queue.push_back((Vec::<Direction>::new(), self.layout.start.0));
 
-        while !bfs_queue.is_empty() {
-            let (parent_prev, parent_pos) = bfs_queue.pop_front().unwrap();
+        while let Some((parent_prev, parent_pos)) = bfs_queue.pop_front() {
             if parent_pos == self.layout.end.0 {
                 solution.steps = Some(parent_prev);
                 break;
-            } else if parent_prev.len() > max_depth.into() {
+            } else if parent_prev.len() > max_depth as usize {
                 break;
             } else if !visited.contains(&parent_pos) {
                 visited.insert(parent_pos);
@@ -586,16 +555,15 @@ impl Board {
         self.solution = Some(solution);
     }
 
-    fn get_possible_moves(&self, previous_move_opt: Option<&Direction>) -> Vec<Direction> {
-        previous_move_opt
-            .map(|previous_move| {
-                // If the previous move exists, the next move must be in an orthogonal direction.
-                if *previous_move == Direction::Up || *previous_move == Direction::Down {
-                    vec![Direction::Right, Direction::Left]
-                } else {
-                    vec![Direction::Up, Direction::Down]
-                }
-            })
-            .unwrap_or(Vec::from(Direction::ALL))
+    fn get_possible_moves(&self, previous_move: Option<&Direction>) -> Vec<Direction> {
+        match previous_move {
+            Some(Direction::Up) | Some(Direction::Down) => {
+                vec![Direction::Right, Direction::Left]
+            }
+            Some(Direction::Left) | Some(Direction::Right) => {
+                vec![Direction::Up, Direction::Down]
+            }
+            None => Direction::ALL.to_vec(),
+        }
     }
 }
