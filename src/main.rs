@@ -42,7 +42,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let board = board::Board::generate_solvable_board(&game_state.config);
         print!("{}", board.get_layout_json());
     } else {
-        game::start_game(game_state);
+        game::start_game(game_state)?;
     }
 
     Ok(())

@@ -1,14 +1,15 @@
-use crossterm::{execute, terminal};
-
-use crossterm::event::{
-    Event, Event::Key, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers,
+use crossterm::{
+    cursor,
+    event::{Event, Event::Key, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers},
+    execute, queue, style,
+    terminal::{self, enable_raw_mode, ClearType},
 };
-use crossterm::terminal::enable_raw_mode;
-use crossterm::{cursor, queue, style};
-use std::io::{stdout, Stdout, Write};
-use std::iter::Iterator;
-use std::thread;
-use std::time::Duration;
+use std::{
+    io::{stdout, Result, Stdout, Write},
+    iter::Iterator,
+    thread,
+    time::Duration,
+};
 
 use crate::system::{exit_game, respond_to_input};
 
@@ -40,8 +41,8 @@ where
         change_iterator: MoveIterator,
         game_over_function: GameOver,
         frame_delay_millis: u64,
-    ) -> Renderer<RenderFn, InputFn, MoveIterator, GameOver> {
-        Renderer {
+    ) -> Self {
+        Self {
             render_function,
             input_handler,
             change_iterator,
@@ -59,50 +60,51 @@ where
             state: KeyEventState::NONE,
         }) = event
         {
-            match code {
-                KeyCode::Char(c) if c == 'c' && modifiers == KeyModifiers::CONTROL => {
-                    exit_game();
-                }
-                keycode => (self.input_handler)(keycode),
+            match (code, modifiers) {
+                (KeyCode::Char('c'), m) if m == KeyModifiers::CONTROL => exit_game(),
+                (key_code, _) => (self.input_handler)(key_code),
             }
         }
     }
 
     fn render_next_frame(&mut self) -> bool {
-        /*
-        call move iterator, return true if another frame should be rendered
-         */
+        // call move iterator and return true if another frame should be rendered.
         self.change_iterator.next().is_some()
     }
 
-    pub fn render_scene(&mut self) {
-        enable_raw_mode().unwrap();
+    fn draw_frame(&self, stdout: &mut Stdout) -> Result<()> {
+        execute!(stdout, terminal::Clear(ClearType::All))?;
+        queue!(stdout, cursor::MoveTo(0, 0))?;
 
-        let mut stdout: Stdout = stdout();
+        let scene = (self.render_function)();
+
+        for (row_index, line) in scene.iter().enumerate() {
+            queue!(
+                stdout,
+                style::Print(line),
+                cursor::MoveTo(0, row_index as u16 + 1)
+            )?;
+        }
+
+        stdout.flush()?;
+        Ok(())
+    }
+
+    pub fn render_scene(&mut self) -> Result<()> {
+        enable_raw_mode()?;
+
+        let mut stdout = stdout();
 
         while !(self.game_over_function)() {
-            let mut event_handler = |event: Event| (self.key_input_handler(event));
-            respond_to_input(&mut event_handler);
+            let mut event_handler = |event: Event| self.key_input_handler(event);
+            respond_to_input(&mut event_handler)?;
 
             if !self.initial_render || self.render_next_frame() {
-                if !self.initial_render {
-                    self.initial_render = true;
-                }
-                execute!(stdout, terminal::Clear(terminal::ClearType::All)).unwrap();
-                queue!(stdout, cursor::MoveTo(0, 0)).unwrap();
-                let scene: Vec<String> = (self.render_function)();
-
-                for (idx, row) in scene.iter().enumerate() {
-                    queue!(
-                        stdout,
-                        style::Print(row),                 // Print row
-                        cursor::MoveTo(0, idx as u16 + 1)  // Move to next row
-                    )
-                    .unwrap();
-                }
-                stdout.flush().unwrap();
+                self.initial_render = true;
+                self.draw_frame(&mut stdout)?;
             }
             thread::sleep(Duration::from_millis(self.frame_delay_millis));
         }
+        Ok(())
     }
 }

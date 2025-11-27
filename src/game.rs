@@ -3,12 +3,12 @@ use crate::game_state::GameState;
 use crate::renderer::Renderer;
 use crate::system::{clear_terminal, exit_game, respond_to_input};
 
-use crossterm::event::{
-    Event, Event::Key, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers,
-};
+use crossterm::event::Event;
+use crossterm::event::{Event::Key, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 
 use std::cell::RefCell;
+use std::io::{self, Result};
 use std::iter;
 use std::rc::Rc;
 
@@ -30,7 +30,7 @@ pub fn get_introduction_section() -> Vec<String> {
     INTRO.lines().map(str::to_owned).collect()
 }
 
-fn play_next_input_handler(play_again_signal: &mut bool) {
+fn play_next_input_handler(play_again_signal: &mut bool) -> io::Result<()> {
     let mut event_handler = |event: Event| {
         if let Key(KeyEvent {
             code,
@@ -48,17 +48,17 @@ fn play_next_input_handler(play_again_signal: &mut bool) {
         }
     };
 
-    respond_to_input(&mut event_handler);
+    respond_to_input(&mut event_handler)
 }
 
-pub fn start_game(game_state: GameState) {
+pub fn start_game(game_state: GameState) -> Result<()> {
     let game_config = game_state.config.clone();
     let rc_game_state = Rc::new(RefCell::new(game_state));
 
     loop {
-        // Disable raw mode so puzzle generation and intro text print nicely.
-        let _ = disable_raw_mode();
-        clear_terminal();
+        // During puzzle generation, disable raw mode so printing works normally.
+        disable_raw_mode()?;
+        clear_terminal()?;
 
         for line in get_introduction_section() {
             println!("{line}");
@@ -67,23 +67,23 @@ pub fn start_game(game_state: GameState) {
         let mut board = Board::generate_solvable_board(&game_config);
 
         // Now that we have a board, prepare to play it.
-        let _ = enable_raw_mode();
+        enable_raw_mode()?;
         board.attach_game_state(Rc::clone(&rc_game_state));
 
-        play_board(&mut board);
+        play_board(&mut board)?;
 
         // After the level has been solved, reset the show-solution state.
         rc_game_state.borrow_mut().display_solution = false;
 
         let mut play_next_game = false;
         while !play_next_game {
-            play_next_input_handler(&mut play_next_game);
+            play_next_input_handler(&mut play_next_game)?;
         }
     }
 }
 
-fn play_board(board: &mut Board) {
-    clear_terminal();
+fn play_board(board: &mut Board) -> Result<()> {
+    clear_terminal()?;
 
     // Although the render function only needs read access to the board,
     //   the input handler and move iterator both need write access.
@@ -184,5 +184,5 @@ fn play_board(board: &mut Board) {
         50,
     );
 
-    renderer.render_scene();
+    renderer.render_scene()
 }
