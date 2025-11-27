@@ -44,6 +44,9 @@ pub struct BoardLayout {
     start: Start,
     end: End,
     rocks: Vec<Rock>,
+    // Including the grid is actually redundant (because the same info can be
+    // derived in the other fields), but it provides a clean, human-readable
+    // layout of what the level looks like.
     #[serde(serialize_with = "grid_as_strings")]
     grid: Vec<Vec<Tile>>,
 }
