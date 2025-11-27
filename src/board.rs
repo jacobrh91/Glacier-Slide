@@ -11,6 +11,7 @@ use crate::{
 
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use direction::{Direction, Move, Slide};
+use serde::{Serialize, Serializer};
 use solution::Solution;
 use time_elapsed::{self, TimeElapsed};
 
@@ -28,15 +29,34 @@ use std::{
 };
 use tile::{End, Player, Rock, Start, Tile};
 
-// Board coordinates start at 0, 0 in the top left corner
-pub struct Board {
+fn grid_as_strings<S>(grid: &[Vec<Tile>], serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    // Convert the grid to a Vec<String>
+    let rows: Vec<String> = grid
+        .iter()
+        .map(|row| row.iter().map(Tile::as_char).collect())
+        .collect();
+
+    rows.serialize(serializer)
+}
+
+#[derive(Serialize)]
+pub struct BoardLayout {
     rows: usize, // Value includes the left and right border columns
     cols: usize, // Value includes the top and bottom border rows
     start: Start,
     end: End,
-    pub player: Player,
     rocks: Vec<Rock>,
+    #[serde(serialize_with = "grid_as_strings")]
     grid: Vec<Vec<Tile>>,
+}
+
+// Board coordinates start at 0, 0 in the top left corner
+pub struct Board {
+    layout: BoardLayout,
+    pub player: Player,
     pub move_queue: VecDeque<Move>,
     pub player_has_won: bool,
     bot_is_solving: bool,
@@ -69,19 +89,25 @@ impl Board {
         }
 
         Board {
-            rows,
-            cols,
-            start: Start { pos: start },
-            end: End { pos: end },
+            layout: BoardLayout {
+                rows,
+                cols,
+                start: Start { pos: start },
+                end: End { pos: end },
+                rocks: rocks.iter().map(|r| Rock { pos: *r }).collect(),
+                grid,
+            },
             player: Player { pos: start },
-            rocks: rocks.iter().map(|r| Rock { pos: *r }).collect(),
-            grid,
             move_queue: VecDeque::new(),
             player_has_won: false,
             bot_is_solving: false,
             solution: None,
             game_state: None,
         }
+    }
+
+    pub fn get_layout_json(&self) -> String {
+        serde_json::to_string(&self.layout).expect("Failed to serialize to JSON")
     }
 
     // Game state is not needed when generating solvable boards, but
@@ -225,7 +251,7 @@ impl Board {
             } else {
                 String::from("◁ ")
             }
-        } else if p.col == self.cols - 1 {
+        } else if p.col == self.layout.cols - 1 {
             if start_position {
                 String::from(" ◁")
             } else {
@@ -276,10 +302,15 @@ impl Board {
         for r in r_top..=r_bottom {
             let mut row_str = String::from("");
             for c in c_left..=c_right {
-                if c < 0 || c as usize >= self.cols || r < 0 || r as usize >= self.rows {
+                if c < 0
+                    || c as usize >= self.layout.cols
+                    || r < 0
+                    || r as usize >= self.layout.rows
+                {
                     // Deriving the border noise from a hash of the rock data is deterministic, but unpredictable.
                     // If it were simply random, the border rocks would change completely every frame.
-                    let rock_positions: Vec<Point> = self.rocks.iter().map(|r| r.pos).collect();
+                    let rock_positions: Vec<Point> =
+                        self.layout.rocks.iter().map(|r| r.pos).collect();
                     let v = Board::calculate_hash(&((c, r), rock_positions));
 
                     if v % 10 < 8 {
@@ -288,7 +319,7 @@ impl Board {
                         row_str.push_str("  ");
                     }
                 } else {
-                    let tile_str = match self.grid[r as usize][c as usize] {
+                    let tile_str = match self.layout.grid[r as usize][c as usize] {
                         Tile::Wall | Tile::Rock => String::from("██"),
                         Tile::Start => self.create_arrows(
                             true,
@@ -317,10 +348,10 @@ impl Board {
 
     fn render_full_board(&self) -> Vec<String> {
         let mut result = Vec::new();
-        for r in 0..self.rows {
+        for r in 0..self.layout.rows {
             let mut row_str = String::from("");
-            for c in 0..self.cols {
-                let tile_str = match self.grid[r][c] {
+            for c in 0..self.layout.cols {
+                let tile_str = match self.layout.grid[r][c] {
                     Tile::Wall => String::from("██"),
                     Tile::Rock => String::from("██"),
                     Tile::Start => self.create_arrows(true, Point { col: c, row: r }),
@@ -342,7 +373,7 @@ impl Board {
         match direction {
             Direction::Up => {
                 while !stop && curr_pos.row != 0 {
-                    match self.grid[curr_pos.row - 1][curr_pos.col] {
+                    match self.layout.grid[curr_pos.row - 1][curr_pos.col] {
                         Tile::Wall | Tile::Rock => stop = true,
                         _ => {
                             curr_pos.row -= 1;
@@ -352,8 +383,8 @@ impl Board {
                 }
             }
             Direction::Down => {
-                while !stop && curr_pos.row != self.rows - 1 {
-                    match self.grid[curr_pos.row + 1][curr_pos.col] {
+                while !stop && curr_pos.row != self.layout.rows - 1 {
+                    match self.layout.grid[curr_pos.row + 1][curr_pos.col] {
                         Tile::Wall | Tile::Rock => stop = true,
                         _ => {
                             curr_pos.row += 1;
@@ -364,7 +395,7 @@ impl Board {
             }
             Direction::Left => {
                 while !stop && curr_pos.col != 0 {
-                    match self.grid[curr_pos.row][curr_pos.col - 1] {
+                    match self.layout.grid[curr_pos.row][curr_pos.col - 1] {
                         Tile::Wall | Tile::Rock => stop = true,
                         _ => {
                             curr_pos.col -= 1;
@@ -374,8 +405,8 @@ impl Board {
                 }
             }
             Direction::Right => {
-                while !stop && curr_pos.col != self.cols - 1 {
-                    match self.grid[curr_pos.row][curr_pos.col + 1] {
+                while !stop && curr_pos.col != self.layout.cols - 1 {
+                    match self.layout.grid[curr_pos.row][curr_pos.col + 1] {
                         Tile::Wall | Tile::Rock => stop = true,
                         _ => {
                             curr_pos.col += 1;
@@ -395,7 +426,7 @@ impl Board {
 
             self.player.pos.row = new_row;
             self.player.pos.col = new_col;
-            self.grid[new_row][new_col] = Tile::Player;
+            self.layout.grid[new_row][new_col] = Tile::Player;
 
             if self.player_won() && !self.bot_is_solving {
                 self.player_has_won = true;
@@ -405,12 +436,12 @@ impl Board {
             }
 
             // Clean up the position where the player used to be.
-            if prev_pos == self.start.pos {
-                self.grid[prev_pos.row][prev_pos.col] = Tile::Start;
-            } else if prev_pos == self.end.pos {
-                self.grid[prev_pos.row][prev_pos.col] = Tile::End;
+            if prev_pos == self.layout.start.pos {
+                self.layout.grid[prev_pos.row][prev_pos.col] = Tile::Start;
+            } else if prev_pos == self.layout.end.pos {
+                self.layout.grid[prev_pos.row][prev_pos.col] = Tile::End;
             } else {
-                self.grid[prev_pos.row][prev_pos.col] = Tile::Ice;
+                self.layout.grid[prev_pos.row][prev_pos.col] = Tile::Ice;
             }
         }
     }
@@ -445,7 +476,7 @@ impl Board {
             if let Some(r#move) = move_opt {
                 if let Move::Reset = r#move {
                     self.move_queue.clear();
-                    if self.player.pos != self.start.pos {
+                    if self.player.pos != self.layout.start.pos {
                         // Only queue the reset move if the player is not in the start position.
                         self.move_queue.push_back(r#move);
                     }
@@ -467,7 +498,7 @@ impl Board {
     }
 
     pub fn player_won(&self) -> bool {
-        self.player.pos == self.end.pos
+        self.player.pos == self.layout.end.pos
     }
 
     pub fn process_move(&mut self) -> Option<()> {
@@ -486,7 +517,8 @@ impl Board {
                     }
                     self.move_player(slide.direction)
                 }
-                Move::Reset => self.update_player_position(self.start.pos.row, self.start.pos.col),
+                Move::Reset => self
+                    .update_player_position(self.layout.start.pos.row, self.layout.start.pos.col),
                 Move::ShowSolution => {
                     if let Some(game_state) = &self.game_state {
                         let mut game_state_ref = game_state.borrow_mut();
@@ -514,11 +546,11 @@ impl Board {
 
         // Breadth-first search guarantees the first solution we find is the shortest (if there is a solution).
         let mut bfs_queue = VecDeque::new();
-        bfs_queue.push_back((Vec::<Direction>::new(), self.start.pos));
+        bfs_queue.push_back((Vec::<Direction>::new(), self.layout.start.pos));
 
         while !bfs_queue.is_empty() {
             let (parent_prev, parent_pos) = bfs_queue.pop_front().unwrap();
-            if parent_pos == self.end.pos {
+            if parent_pos == self.layout.end.pos {
                 solution.steps = Some(parent_prev);
                 break;
             } else if parent_prev.len() > max_depth.into() {
@@ -545,7 +577,7 @@ impl Board {
             }
         }
         // After solving (or giving up due to the search depth), return the player to the start
-        self.update_player_position(self.start.pos.row, self.start.pos.col);
+        self.update_player_position(self.layout.start.pos.row, self.layout.start.pos.col);
         self.bot_is_solving = false;
         self.player_has_won = false;
 

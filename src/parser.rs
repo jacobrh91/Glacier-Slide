@@ -34,4 +34,6 @@ pub struct Args {
     pub full_level_view: bool,
     #[arg(short, long, default_value_t = false)]
     pub debug: bool,
+    #[arg(long, default_value_t = false)]
+    pub board_only: bool,
 }
