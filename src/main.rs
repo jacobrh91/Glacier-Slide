@@ -38,7 +38,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // If this program is only being called to generate a board
     if cli.board_only {
         let board = board::Board::generate_solvable_board(&game_state.config);
-        println!("{}", board.get_layout_json())
+        print!("{}", board.get_layout_json())
     } else {
         game::start_game(game_state);
     };
