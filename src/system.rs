@@ -5,22 +5,34 @@ use std::{
 };
 
 use crossterm::{
-    cursor, queue,
-    terminal::{self, disable_raw_mode, enable_raw_mode},
+    cursor::{MoveTo, Show},
+    execute,
+    terminal::{disable_raw_mode, Clear, ClearType},
 };
 
 pub fn exit_game() {
-    // Without this, the terminal gets messed up after the program ends.
-    disable_raw_mode().unwrap();
+    // Always restore raw mode first
+    let _ = disable_raw_mode();
+
+    // Clean visible screen
+    let _ = execute!(
+        stdout(),
+        Clear(ClearType::All),
+        Show,
+        crossterm::cursor::MoveTo(0, 0)
+    );
+
+    // Ensure everything is flushed
+    let _ = stdout().flush();
+
+    // Exit safely
     process::exit(130);
 }
 
 pub fn clear_terminal() {
-    enable_raw_mode().unwrap();
-    queue!(stdout(), terminal::Clear(terminal::ClearType::All)).unwrap();
-    queue!(stdout(), cursor::MoveTo(0, 0)).unwrap();
-    stdout().flush().unwrap();
-    disable_raw_mode().unwrap();
+    let mut out = stdout();
+    let _ = execute!(out, Clear(ClearType::All), MoveTo(0, 0));
+    let _ = out.flush();
 }
 
 pub fn respond_to_input<F: FnMut(crossterm::event::Event)>(event_handler: &mut F) {
