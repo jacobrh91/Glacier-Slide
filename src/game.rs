@@ -59,7 +59,7 @@ pub fn start_game(mut game_state: GameState) -> Result<()> {
         }
 
         // Generate a new solvable board with the current config.
-        let mut board = Board::generate_solvable_board(&game_state.config);
+        let mut board = Board::generate_solvable_board(&game_state.config, None);
 
         // Run the main interactive loop for this board.
         {

@@ -164,15 +164,16 @@ impl Board {
         Board::new(rows, cols, start, end, rocks)
     }
 
-    pub fn generate_solvable_board(game_config: &GameConfig) -> Self {
+    pub fn generate_solvable_board(game_config: &GameConfig, request_id_opt: Option<u64>) -> Self {
         let mut time: Option<TimeElapsed> = None;
         let mut board_count: u32 = 1;
         let mut denominator: u32 = 1;
+        let request_id = request_id_opt.unwrap_or(1);
 
         if game_config.debug {
             time = Some(time_elapsed::start("level generator"));
         } else if !game_config.board_only {
-            println!("Generating level...");
+            tracing::info!(request_id, "Generating level {:?}.", &game_config);
         }
 
         let mut board;
@@ -180,7 +181,7 @@ impl Board {
         loop {
             if board_count > 1_000_000 {
                 if !game_config.board_only {
-                    println!("Could not find solvable level after 1,000,000 attempts. Adjust board parameters.");
+                    tracing::info!(request_id, "Could not find solvable level after 1,000,000 attempts. Adjust board parameters.");
                 }
                 exit_game();
             }
@@ -210,6 +211,11 @@ impl Board {
                 .unwrap_or(false);
 
             if solution_found {
+                tracing::info!(
+                    request_id,
+                    "Solvable level found after {} attempts.",
+                    &board_count
+                );
                 break;
             }
         }

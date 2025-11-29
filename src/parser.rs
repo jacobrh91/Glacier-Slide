@@ -32,4 +32,8 @@ pub struct Args {
     pub debug: bool,
     #[arg(long)]
     pub board_only: bool,
+    #[arg(long)]
+    pub server_mode: bool,
+    #[arg(long, default_value = "127.0.0.1:7878")]
+    pub bind: String,
 }

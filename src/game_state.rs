@@ -1,4 +1,4 @@
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GameConfig {
     pub cols: u8,
     pub rows: u8,
@@ -32,16 +32,16 @@ impl GameConfig {
             board_only: false,
         }
     }
-    pub fn get_config_from_difficulty(s: String) -> Self {
-        match s.to_lowercase().as_str() {
-            "easy" => GameConfig::new(7, 7, 15),
-            "medium" => GameConfig::new(12, 11, 15),
-            "hard" => GameConfig::new(17, 18, 10),
-            "extreme" => GameConfig::new(20, 25, 12),
-            _ => {
-                // This should not be possible given the argument parser should already have guaranteed this string is valid.
-                panic!("Unknown difficulty argument '{}'. Choose from 'easy', 'medium', 'hard', or 'extreme'.", s)
-            }
+    pub fn get_config_from_difficulty(s: &str) -> Result<Self, String> {
+        match s.trim().to_lowercase().as_str() {
+            "easy" => Ok(GameConfig::new(7, 7, 15)),
+            "medium" => Ok(GameConfig::new(12, 11, 15)),
+            "hard" => Ok(GameConfig::new(17, 18, 10)),
+            "extreme" => Ok(GameConfig::new(20, 25, 12)),
+            other => Err(format!(
+                "Unknown difficulty '{}'. Expected one of: easy, medium, hard, or extreme.",
+                other
+            )),
         }
     }
 }
