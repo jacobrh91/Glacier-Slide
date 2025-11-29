@@ -24,30 +24,47 @@ cargo build --release
 cp target/release/glacier_slide .
 
 # Run the program
-./glacier_slide
+./glacier_slide play
 ```
 
 ## How to play
 
-Open the help menu with `./glacier_slide -h`
+Open the general help menu with `./glacier_slide -h`
 
 ### Help Menu
 
 ```
-Usage: glacier_slide [OPTIONS] [DIFFICULTY]
+Usage: glacier_slide <COMMAND>
 
-Arguments:
-  [DIFFICULTY]  [possible values: easy, medium, hard, extreme]
+Commands:
+  play      Play the game in the terminal
+  generate  Generate a solvable board and print it as JSON
+  serve     Run the HTTP server to generate solvable boards
+  help      Print this message or the help of the given subcommand(s)
 
 Options:
-  -c, --columns <COLUMNS>             
-  -r, --rows <ROWS>                   
-  -m, --moves-required <MOVES>        
-  -p, --rock-percentage <PERCENTAGE>  
-  -v, --full-level-view               
-  -d, --debug                   
+  -h, --help     Print help
+  -V, --version  Print version
+```
+
+### Play/Generate help Menu
+
+```
+Play the game in the terminal
+
+Usage: glacier_slide play [OPTIONS] [DIFFICULTY]
+
+Arguments:
+  [DIFFICULTY]  Puzzle difficulty [possible values: easy, medium, hard, extreme]
+
+Options:
+  -c, --columns <COLUMNS>             Number of columns
+  -r, --rows <ROWS>                   Number of rows
+  -m, --moves-required <MOVES>        Minimum moves required to win
+  -p, --rock-percentage <PERCENTAGE>  Percent of tiles that are rocks
+  -v, --full-level-view               Toggle between views
+  -d, --debug                         Enable debug mode
   -h, --help                          Print help
-  -V, --version                       Print version
 ```
 
 ### Examples
