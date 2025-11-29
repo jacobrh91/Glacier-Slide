@@ -23,7 +23,7 @@ pub async fn board_handler(Query(params): Query<BoardRequest>) -> impl IntoRespo
         "Received board generation request",
     );
 
-    let config = match GameConfig::get_config_from_difficulty(&params.difficulty) {
+    let config = match GameConfig::for_server_from_difficulty(&params.difficulty) {
         Ok(cfg) => cfg,
         Err(msg) => {
             tracing::warn!(request_id, error = %msg, "Bad difficulty parameter");
@@ -34,7 +34,24 @@ pub async fn board_handler(Query(params): Query<BoardRequest>) -> impl IntoRespo
         }
     };
 
-    let board = board::Board::generate_solvable_board(&config, Some(request_id));
+    let board = match board::Board::generate_solvable_board(&config, Some(request_id)) {
+        Ok(b) => b,
+        Err(e) => {
+            tracing::error!(
+                request_id,
+                error = %e,
+                "Failed to generate solvable board"
+            );
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "request_id": request_id,
+                    "error": "failed to generate solvable board"
+                })),
+            );
+        }
+    };
+
     let json_str = board.get_layout_json();
 
     match serde_json::from_str::<serde_json::Value>(&json_str) {
@@ -45,8 +62,12 @@ pub async fn board_handler(Query(params): Query<BoardRequest>) -> impl IntoRespo
                 Json(json!({ "request_id": request_id, "board": value })),
             )
         }
-        Err(_) => {
-            tracing::error!(request_id, "Failed to serialize board");
+        Err(e) => {
+            tracing::error!(
+                request_id,
+                error = %e,
+                "Failed to serialize board JSON"
+            );
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({

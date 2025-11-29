@@ -48,6 +48,15 @@ impl GameConfig {
         }
     }
 
+    pub fn for_server_from_difficulty(s: &str) -> Result<Self, String> {
+        GameConfig::get_config_from_difficulty(s).map(|mut cfg| {
+            // In server mode, board_only is true.
+            // Otherwise, the program will exit if a solvable board cannot be found.
+            cfg.board_only = true;
+            cfg
+        })
+    }
+
     pub fn from_level_args(level: &LevelArgs, board_only: bool) -> Result<Self, String> {
         // Base config comes from difficulty, or falls back to default.
         let base = level

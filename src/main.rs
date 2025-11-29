@@ -29,7 +29,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         Command::Generate(level_args) => {
             let game_state = GameState::from(level_args, true)?;
             // Do not play the game, just return the puzzle to STDOUT as JSON.
-            let board = board::Board::generate_solvable_board(&game_state.config, None);
+            let board = board::Board::generate_solvable_board(&game_state.config, None)?;
             print!("{}", board.get_layout_json());
         }
     }

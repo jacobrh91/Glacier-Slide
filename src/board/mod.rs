@@ -164,7 +164,10 @@ impl Board {
         Board::new(rows, cols, start, end, rocks)
     }
 
-    pub fn generate_solvable_board(game_config: &GameConfig, request_id_opt: Option<u64>) -> Self {
+    pub fn generate_solvable_board(
+        game_config: &GameConfig,
+        request_id_opt: Option<u64>,
+    ) -> Result<Self, String> {
         let mut time: Option<TimeElapsed> = None;
         let mut board_count: u32 = 1;
         let mut denominator: u32 = 1;
@@ -180,11 +183,16 @@ impl Board {
 
         loop {
             if board_count > 1_000_000 {
-                if !game_config.board_only {
-                    tracing::info!(request_id, "Could not find solvable level after 1,000,000 attempts. Adjust board parameters.");
+                let msg = "Could not find solvable level after 1,000,000 attempts.";
+
+                if game_config.board_only {
+                    return Err(msg.to_string());
+                } else {
+                    tracing::error!(request_id, "{}", msg);
+                    exit_game();
                 }
-                exit_game();
             }
+
             board = Board::generate_random_board(game_config);
 
             if game_config.debug && board_count % denominator == 0 {
@@ -227,7 +235,7 @@ impl Board {
             board.layout.grid[start.row][start.col] = Tile::Start;
         }
 
-        board
+        Ok(board)
     }
 
     fn create_arrows(&self, start_position: bool, p: Point) -> String {

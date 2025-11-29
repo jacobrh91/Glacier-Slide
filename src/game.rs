@@ -1,4 +1,4 @@
-use std::io::{self, Result};
+use std::error::Error;
 
 use crossterm::event::Event;
 use crossterm::event::{Event::Key, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
@@ -27,7 +27,7 @@ pub fn get_introduction_section() -> Vec<String> {
     INTRO.lines().map(str::to_owned).collect()
 }
 
-fn play_next_input_handler(play_again_signal: &mut bool) -> io::Result<()> {
+fn play_next_input_handler(play_again_signal: &mut bool) -> Result<(), Box<dyn Error>> {
     let mut event_handler = |event: Event| {
         if let Key(KeyEvent {
             code,
@@ -45,10 +45,11 @@ fn play_next_input_handler(play_again_signal: &mut bool) -> io::Result<()> {
         }
     };
 
-    respond_to_input(&mut event_handler)
+    respond_to_input(&mut event_handler)?;
+    Ok(())
 }
 
-pub fn start_game(mut game_state: GameState) -> Result<()> {
+pub fn start_game(mut game_state: GameState) -> Result<(), Box<dyn Error>> {
     loop {
         // During puzzle generation, disable raw mode so printing works normally.
         disable_raw_mode()?;
@@ -59,7 +60,7 @@ pub fn start_game(mut game_state: GameState) -> Result<()> {
         }
 
         // Generate a new solvable board with the current config.
-        let mut board = Board::generate_solvable_board(&game_state.config, None);
+        let mut board = Board::generate_solvable_board(&game_state.config, None)?;
 
         // Run the main interactive loop for this board.
         {
