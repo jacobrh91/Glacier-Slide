@@ -1,3 +1,5 @@
+use crate::parser::LevelArgs;
+
 #[derive(Clone, Debug)]
 pub struct GameConfig {
     pub cols: u8,
@@ -77,5 +79,36 @@ impl GameState {
             player_focused_view,
             display_solution: false,
         }
+    }
+
+    pub fn from(level: LevelArgs, board_only: bool) -> Result<Self, String> {
+        // Base config comes from difficulty, or falls back to default.
+        let base_config = level
+            .difficulty
+            .as_deref()
+            .map(GameConfig::get_config_from_difficulty)
+            .transpose()?
+            .unwrap_or_default();
+
+        // CLI flags override the base config.
+        let cols = level.columns.unwrap_or(base_config.cols);
+        let rows = level.rows.unwrap_or(base_config.rows);
+        let rock_probability = level
+            .rock_percentage
+            .unwrap_or(base_config.rock_probability);
+        let min_moves = level
+            .moves_required
+            .unwrap_or(base_config.minimum_moves_required);
+
+        let game_state = GameState::new(
+            cols,
+            rows,
+            rock_probability,
+            min_moves,
+            !level.full_level_view,
+            level.debug,
+            board_only,
+        );
+        Ok(game_state)
     }
 }

@@ -1,4 +1,4 @@
-use clap::{arg, command, Parser};
+use clap::{arg, command, Parser, Subcommand};
 use clap_num::number_range;
 
 fn dimension_bounds(s: &str) -> Result<u8, String> {
@@ -16,6 +16,22 @@ fn rock_percentage(s: &str) -> Result<u8, String> {
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct Args {
+    #[command(subcommand)]
+    pub command: Command,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum Command {
+    /// Play the game in the terminal.
+    Play(LevelArgs),
+    /// Generate a solvable board and print it as JSON.
+    Generate(LevelArgs),
+    /// Run the HTTP server to geneerate solvable boards.
+    Serve(ServeArgs),
+}
+
+#[derive(Debug, Parser)]
+pub struct LevelArgs {
     #[arg(ignore_case = true, value_parser = ["easy", "medium", "hard", "extreme"])]
     pub difficulty: Option<String>,
     #[arg(short, long, value_parser = dimension_bounds)]
@@ -30,10 +46,10 @@ pub struct Args {
     pub full_level_view: bool,
     #[arg(short, long)]
     pub debug: bool,
-    #[arg(long)]
-    pub board_only: bool,
-    #[arg(long)]
-    pub server_mode: bool,
+}
+
+#[derive(Debug, Parser)]
+pub struct ServeArgs {
     #[arg(long, default_value = "127.0.0.1:7878")]
     pub bind: String,
 }
