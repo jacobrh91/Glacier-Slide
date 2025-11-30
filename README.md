@@ -118,4 +118,97 @@ Another pattern to notice is that the optimal solution will never have the playe
 
 ### Larger levels are possible
 
-You may notice in the command-line arguments parser (`src/parser.rs`) that I have capped the dimensions of the puzzle at 20 tiles and the minimum number of moves to solve at 35. This was somewhat arbitrary, and the program can easily generate much larger levels. But I doubt many people would enjoy a 100 by 100 puzzle that requires 50 moves to solve. 
+You may notice in the command-line arguments parser (`src/parser.rs`) that I have capped the dimensions of the puzzle at 20 tiles and the minimum number of moves to solve at 35. This was somewhat arbitrary, and the program can easily generate much larger levels. But I doubt many people would enjoy a 100 by 100 puzzle that requires 50 moves to solve.
+
+## Running the HTTP Level-Generation Server
+
+The project includes a built-in HTTP server that generates solvable ice-sliding puzzle boards on demand.
+This server is used by the [Next.js frontend](https://github.com/jacobrh91/Glacier-Slide-UI) to request new boards.
+
+### Start the server
+
+Run the following command:
+
+```
+cargo run --release -- serve
+```
+
+By default, the server binds to:
+
+```
+127.0.0.1:7878
+```
+
+### Customizing the bind address
+
+Use the `--bind` flag to override the default:
+
+```
+cargo run -- serve --bind 0.0.0.0:9000
+```
+
+#### Examples:
+
+```
+# Bind to a different port
+cargo run -- serve --bind 127.0.0.1:9000
+```
+
+### What the server does
+
+Accepts HTTP GET requests at:
+
+```
+/board?difficulty=easy
+```
+
+Valid difficulty values:
+```
+easy, medium, hard, extreme
+```
+
+Generates a solvable board matching the difficulty's configuration rules.
+
+Returns the level as JSON, including rows, columns, start, end, rocks, and grid data.
+
+### Example request
+```
+curl "http://localhost:7878/board?difficulty=easy"
+```
+### Example response
+
+Including the "grid" field is redundant, but it provides a quick visual of what
+the level should look like.
+
+All coordinates represent [column, row].
+
+
+```
+{
+  "request_id": 1,
+  "board": {
+    "cols": 7,
+    "rows": 7,
+    "start": [0, 1],
+    "end":   [6, 3],
+    "rocks": [
+      [3, 1],
+      [4, 1],
+      [4, 4],
+      [4, 5],
+      [5, 2],
+      [5, 4],
+      [5, 5]
+    ],
+    "grid": [
+      "WWWWWWW",
+      "S  RR W",
+      "W    RW",
+      "W     E",
+      "W   RRW",
+      "W   RRW",
+      "WWWWWWW"
+    ]
+  }
+}
+```
