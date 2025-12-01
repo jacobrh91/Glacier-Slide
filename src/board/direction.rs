@@ -55,3 +55,16 @@ pub enum Move {
     Reset,
     SlidePlayer(Slide),
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn direction_as_char_is_correct() {
+        assert_eq!(Direction::Up.as_char(), 'U');
+        assert_eq!(Direction::Down.as_char(), 'D');
+        assert_eq!(Direction::Left.as_char(), 'L');
+        assert_eq!(Direction::Right.as_char(), 'R');
+    }
+}

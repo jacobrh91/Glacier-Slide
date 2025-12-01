@@ -555,3 +555,96 @@ impl Board {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_simple_board() -> Board {
+        /*
+        5x5 board so we have a 1-cell thick wall border and a 3x3 interior.
+        WWWWW
+        S   W
+        W R W
+        W   W
+        WWWEW
+        */
+        let rows = 5;
+        let cols = 5;
+
+        let start = Point { col: 0, row: 1 };
+        let end = Point { col: 3, row: 4 };
+
+        let rocks = vec![Point { col: 2, row: 2 }];
+
+        Board::new(rows, cols, start, end, rocks)
+    }
+
+    #[test]
+    fn steps_in_direction_stops_before_wall() {
+        let board = make_simple_board();
+        /*
+        WWWWW
+        S123W // Three steps to the right
+        W R W
+        W   W
+        WWWEW
+         */
+        assert_eq!(board.steps_in_direction(&Direction::Right), 3);
+    }
+
+    #[test]
+    fn get_possible_moves_from_none_returns_all_directions() {
+        let board = make_simple_board();
+        let mut moves = board.get_possible_moves(None);
+
+        moves.sort_by_key(|d| match d {
+            Direction::Up => 0,
+            Direction::Right => 1,
+            Direction::Down => 2,
+            Direction::Left => 3,
+        });
+
+        assert_eq!(moves.len(), 4);
+        assert_eq!(moves, Direction::ALL.to_vec());
+    }
+
+    #[test]
+    fn get_possible_moves_after_vertical_move_only_horizontal() {
+        let board = make_simple_board();
+        let moves = board.get_possible_moves(Some(&Direction::Up));
+
+        // After Up/Down, only Left/Right should be allowed.
+        assert_eq!(moves.len(), 2);
+        assert!(moves.contains(&Direction::Left));
+        assert!(moves.contains(&Direction::Right));
+    }
+
+    #[test]
+    fn get_possible_moves_after_horizontal_move_only_vertical() {
+        let board = make_simple_board();
+        let moves = board.get_possible_moves(Some(&Direction::Left));
+
+        // After Left/Right, only Up/Down should be allowed.
+        assert_eq!(moves.len(), 2);
+        assert!(moves.contains(&Direction::Up));
+        assert!(moves.contains(&Direction::Down));
+    }
+
+    #[test]
+    fn process_move_reset_returns_player_to_start() {
+        let mut board = make_simple_board();
+
+        // Move the player away from the start.
+        board.move_player(Direction::Right);
+        assert_ne!(board.player.0, board.layout.start.0);
+
+        // Queue a reset move manually.
+        board.move_queue.push_back(Move::Reset);
+
+        board.process_move();
+
+        // Player should be back at the start.
+        assert_eq!(board.player.0, board.layout.start.0);
+    }
+}

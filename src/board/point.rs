@@ -13,3 +13,16 @@ impl serde::Serialize for Point {
         (self.col, self.row).serialize(serializer)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json;
+
+    #[test]
+    fn point_serializes_as_col_row_array() {
+        let p = Point { col: 2, row: 5 };
+        let json = serde_json::to_string(&p).unwrap();
+        assert_eq!(json, "[2,5]");
+    }
+}

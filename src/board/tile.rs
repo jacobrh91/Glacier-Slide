@@ -36,3 +36,18 @@ impl Tile {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tile_as_char_maps_correctly() {
+        assert_eq!(Tile::Wall.as_char(), 'W');
+        assert_eq!(Tile::Rock.as_char(), 'R');
+        assert_eq!(Tile::Start.as_char(), 'S');
+        assert_eq!(Tile::End.as_char(), 'E');
+        assert_eq!(Tile::Player.as_char(), 'P');
+        assert_eq!(Tile::Ice.as_char(), ' ');
+    }
+}
