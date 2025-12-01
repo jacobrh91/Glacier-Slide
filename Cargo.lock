@@ -327,6 +327,7 @@ dependencies = [
  "clap",
  "clap-num",
  "crossterm",
+ "http-body-util",
  "rand",
  "serde",
  "serde_json",
